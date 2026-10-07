@@ -1,0 +1,6 @@
+/* Personal records and authenticated responses are never cached. */
+self.addEventListener('install',()=>self.skipWaiting());
+self.addEventListener('activate',event=>event.waitUntil(self.clients.claim()));
+self.addEventListener('push',event=>{let p;try{p=event.data.json();}catch{return;}const d=p.data||p.notification||p;event.waitUntil(self.registration.showNotification(d.title||'Mihu’s Corner',{body:d.body||'Mihu có một lời nhắc mới.',icon:'/icon-192.png',badge:'/icon-192.png',tag:d.tag||'mihu-reminder',data:{url:typeof d.url==='string'&&/^\/\?day=20\d{2}-\d{2}-\d{2}$/.test(d.url)?d.url:'/'}}));});
+self.addEventListener('notificationclick',event=>{event.notification.close();const url=new URL(event.notification.data?.url||'/',self.location.origin).href;event.waitUntil(self.clients.matchAll({type:'window',includeUncontrolled:true}).then(async clients=>{for(const client of clients){if(new URL(client.url).origin===self.location.origin){await client.navigate(url);return client.focus();}}return self.clients.openWindow(url);}));});
+self.addEventListener('message',event=>{if(event.data?.type==='logout')event.waitUntil(self.registration.getNotifications().then(ns=>ns.forEach(n=>n.close())));});

@@ -40,22 +40,92 @@
 .task-extras summary{display:flex;align-items:center;gap:8px;cursor:pointer;padding:14px 0;font-size:14px;color:var(--accent)}
 .task-extras summary small{margin-left:auto;font-size:11px}.task-extras textarea{min-height:80px}
 .task-editor .form-actions{margin-top:16px}
-@media(max-width:480px){.priority-choice{padding:10px 8px;gap:6px}.task-extras summary small{font-size:10px}.task-row .priority{font-size:10px}.task-times{grid-template-columns:1fr 1fr}}
+@media(max-width:480px){.priority-choice{padding:10px 8px;gap:6px}.task-extras summary small{font-size:10px}.task-row .priority{font-size:10px}}
 /* Prevent native date/time controls from widening grid tracks on phones. */
 .task-editor,.task-editor .field,.task-editor .form-grid{min-width:0;max-width:100%}
 .task-editor .form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 .task-editor input,.task-editor textarea{box-sizing:border-box;min-width:0;max-width:100%}
 .task-editor input[type=date],.task-editor input[type=time]{display:block;width:100%;min-inline-size:0}
-.task-times .field{justify-content:space-between}
-.task-times .field>span{align-items:flex-start}
-.task-times .field>span svg{flex-shrink:0;margin-top:3px}
 .task-extras summary{flex-wrap:wrap}
 .task-extras summary small{white-space:normal}
 @media(max-width:480px){
  .task-editor .form-grid{grid-template-columns:minmax(0,1fr)}
- .task-editor .task-times{gap:0}
  .task-editor input,.task-editor textarea{font-size:16px}
  .task-editor .form-actions{flex-wrap:wrap}
  .task-editor .form-actions .button{min-width:0}
  .task-extras summary small{flex-basis:100%;margin-left:24px}
 }
+
+/* ---------- Dialogs & phone layout (2026-10) ---------- */
+/* Tailwind preflight sets margin:0 on every element, which removes the native centering of
+   modal <dialog>s. Restore it for every dialog (confirmations, crop, forms). */
+dialog:modal{margin:auto;inset:0;max-width:calc(100vw - 24px)}
+dialog.modal{scroll-padding:76px 0 96px}
+html:has(dialog:modal){overflow:hidden}
+.choice-dialog .form-actions{position:static;margin:20px 0 0;padding:16px 0 0}
+/* Native date/time/month inputs: keep them inside their grid track (iOS Safari sizes them by content). */
+input[type=date],input[type=time],input[type=month]{-webkit-appearance:none;appearance:none;display:block;min-inline-size:0;max-width:100%;min-height:48px;line-height:1.2}
+input[type=date]::-webkit-date-and-time-value,input[type=time]::-webkit-date-and-time-value{text-align:left;margin:0}
+.modal .form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.modal .field,.modal .form-grid{min-width:0}
+/* Time range: one short caption per input, so the two inputs always line up. */
+.time-range{border:0;padding:0;margin:0 0 14px;min-width:0}
+.time-range legend{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;margin-bottom:8px;padding:0}
+.time-range legend small{font-size:12px;font-weight:400}
+.time-range-row{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:end;gap:8px}
+.time-cell{display:flex;flex-direction:column;gap:4px;min-width:0}
+.time-cell small{font-size:12px;white-space:nowrap}
+.time-sep{color:var(--muted);padding-bottom:13px}
+.priority-choice{min-width:0;justify-content:center}
+.priority-choice span{white-space:nowrap}
+.sheet-handle{display:none}
+@media(max-width:600px){
+ /* Forms open as a bottom sheet: full width, header and buttons always reachable. */
+ dialog.modal:modal{width:100%;max-width:100%;margin:auto 0 var(--kb,0px);inset:auto 0 0;border-radius:24px 24px 0 0;border-bottom:0;padding:0 18px;max-height:calc(94dvh - var(--kb,0px));overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;animation:sheet-up .22s ease-out}
+ .modal-head{position:sticky;top:0;z-index:3;margin:0 -18px 12px;padding:18px 18px 10px;background:var(--paper);border-bottom:1px solid var(--line)}
+ .modal-head h2{font-size:18px;line-height:1.35}
+ .modal-head .icon-button{width:40px;height:40px;margin-right:-8px}
+ .sheet-handle{display:block;position:absolute;top:7px;left:50%;width:40px;height:4px;margin-left:-20px;border-radius:4px;background:var(--muted);opacity:.3}
+ .modal .form-actions{position:sticky;bottom:0;z-index:3;margin:16px -18px 0;padding:12px 18px calc(12px + env(safe-area-inset-bottom));background:var(--paper);border-top:1px solid var(--line);flex-wrap:nowrap}
+ .modal .form-actions .button{flex:1 1 0;min-width:0;padding:12px 8px;white-space:nowrap}
+ .modal>:last-child:not(form){padding-bottom:calc(20px + env(safe-area-inset-bottom))}
+ .modal input,.modal textarea{font-size:16px}
+ .task-editor .field{margin-bottom:12px}
+ .task-editor .task-title input{font-size:17px}
+ .priority-picker{gap:8px;margin-bottom:14px}
+ .priority-choice{padding:10px 6px;gap:6px}
+ .task-extras{margin:8px 0}
+ .task-extras summary small{flex-basis:100%;margin-left:24px}
+ .choice-dialog .form-actions .button{flex:1}
+}
+@media(max-width:400px){
+ .modal .form-grid{grid-template-columns:minmax(0,1fr)}
+ .time-range-row{gap:6px}
+ .modal .form-actions{gap:8px}
+}
+@keyframes sheet-up{from{transform:translateY(40px);opacity:.6}to{transform:none;opacity:1}}
+@media(prefers-reduced-motion:reduce){dialog.modal:modal{animation:none}}
+.offline-banner{display:flex;align-items:center;gap:10px;padding:10px 14px;margin:0 0 16px;border-radius:12px;background:var(--sun);color:#705021;font-size:13px;line-height:1.5}
+.offline-banner svg{flex-shrink:0}
+.carry-over{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:12px 0;padding:10px 14px;border-radius:12px;background:var(--sun);color:#705021;font-size:13px}
+.carry-over .text-button{font-size:13px;color:inherit;font-weight:600}
+.carry-over.compact{margin:0 0 12px}
+.category-usage{display:flex;flex-direction:column;gap:16px}
+.category-usage>div{display:flex;flex-direction:column;gap:6px;font-size:14px}
+.category-usage .near .progress span{background:var(--yellow)}
+.category-usage .over .progress span{background:#d9506f}
+.category-usage .over small{color:#b23a58}
+.recurring-list{display:flex;flex-direction:column;gap:10px}
+.recurring-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--paper);color:var(--ink);font-size:14px;text-align:left;width:100%}
+.recurring-row>div:first-child{display:flex;flex-direction:column;min-width:0}
+.recurring-row>div:first-child strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.recurring-row .row{gap:8px;flex-shrink:0}
+.recurring-row .button{padding:8px 12px;font-size:13px}
+.recurring-row.as-button{cursor:pointer}
+.journal-search{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:10px}
+.journal-search .field{margin-bottom:8px}
+.journal-count{display:block;margin-bottom:10px}
+.reminder-privacy{padding:12px 14px;border:1px solid var(--line);border-radius:14px}
+.reminder-privacy .check-label{margin:0 0 4px}
+@media(max-width:480px){.journal-search{grid-template-columns:minmax(0,1fr)}.recurring-row{flex-wrap:wrap}.recurring-row .row{margin-left:auto}}
+.category-usage .progress{margin:0}

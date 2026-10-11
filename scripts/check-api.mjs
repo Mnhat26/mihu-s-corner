@@ -45,6 +45,20 @@ audited=await mutate({type:'settings.save',settings:{...audited.settings,theme:'
 const persisted=await (await call(stateRoute.GET,'test_mnhat')).json();assert.equal(persisted.state.journals[task.date].text,'Audit journal');assert.equal(persisted.state.goals.length,1);check('Goals, journal and personalization survive reload');
 const isolated=await (await call(stateRoute.GET,'test_mihu')).json();assert.equal(isolated.state.tasks.length,0);assert.equal(Object.keys(isolated.state.journals).length,0);check('All audited data remains isolated from second account');
 await mutate({type:'journal.delete',date:task.date});await mutate({type:'goal.delete',id:'audit-goal'});await mutate({type:'task.delete',id:task.id,on:task.date,scope:'one'});check('Journal, goal and task removal accepted');
+
+const png=new Uint8Array([137,80,78,71,13,10,26,10,0,0,0,0]);
+const raw=(handler,uid,req)=>requestContext.run({cookies:new Map([['mihu_id',fakeToken(uid)],['mihu_device','test-device']]),setCookies:[]},()=>handler(req));
+async function upload(){const f=new FormData();f.set('file',new File([png],'a.png',{type:'image/png'}));const r=await raw(assetsRoute.POST,'test_mnhat',new Request('http://127.0.0.1:5173/api/assets',{method:'POST',headers:{Origin:'http://127.0.0.1:5173'},body:f}));assert.equal(r.status,200);return (await r.json()).id;}
+const getAsset=id=>raw(assetsRoute.GET,'test_mnhat',new Request('http://127.0.0.1:5173/api/assets?id='+id));
+const photoA=await upload(),photoB=await upload();
+let st=await mutate({type:'settings.save',settings:{...audited.settings,avatar:photoA}});
+const cached=await getAsset(photoA);assert.equal(cached.status,200);assert.match(cached.headers.get('cache-control'),/private.*immutable/);check('Private photos are cacheable by the owner only');
+st=await mutate({type:'settings.save',settings:{...st.settings,avatar:photoB}});
+assert.equal((await getAsset(photoA)).status,404);assert.equal((await getAsset(photoB)).status,200);check('Replaced photo is removed from storage');
+st=await mutate({type:'settings.save',settings:{...st.settings,avatar:''}});assert.equal((await getAsset(photoB)).status,404);
+const {cleanup}=await import('../lib/maintenance.ts');for(let i=0;i<3;i++)await mutate({type:'budget.set',month:'2026-11',amount:i+1});
+const before=(await env.DB.prepare('SELECT COUNT(*) AS n FROM operations WHERE uid=?').bind('test_mnhat').first()).n;await cleanup();const after=(await env.DB.prepare('SELECT COUNT(*) AS n FROM operations WHERE uid=?').bind('test_mnhat').first()).n;assert.equal(after,before,'recent retry records kept');
+await env.DB.prepare('UPDATE spaces SET version=version+500 WHERE uid=?').bind('test_mnhat').run();await cleanup();assert.equal((await env.DB.prepare('SELECT COUNT(*) AS n FROM operations WHERE uid=?').bind('test_mnhat').first()).n,0);check('Old retry records are pruned, recent ones kept');
 for(const name of names){await env.DB.prepare('DELETE FROM spaces WHERE uid=?').bind(name).run();await env.DB.prepare('DELETE FROM operations WHERE uid=?').bind(name).run();}
 globalThis.fetch=nativeFetch;
 console.log(`${count} API checks passed; Firebase transport was mocked, local SQLite was real.`);

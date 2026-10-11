@@ -1,9 +1,9 @@
 import { env } from 'cloudflare:workers';
-import { emptyState, DomainError, type State } from './domain';
+import { emptyState, normalizeState, DomainError } from './domain';
 export const runtime=env as unknown as Record<string,string> & {DB:D1Database;BUCKET:R2Bucket};
 export function config(key:string) { return runtime[key] || process.env[key] || ''; }
 export function db(){if(!runtime.DB)throw new DomainError('Kho dữ liệu chưa được kết nối. Vui lòng thử lại sau.',503);return runtime.DB;}
-export async function readState(uid:string) {const row=await db().prepare('SELECT state,version FROM spaces WHERE uid=?').bind(uid).first<{state:string;version:number}>();return row?{state:JSON.parse(row.state) as State,version:row.version}:{state:emptyState(),version:0};}
+export async function readState(uid:string) {const row=await db().prepare('SELECT state,version FROM spaces WHERE uid=?').bind(uid).first<{state:string;version:number}>();return row?{state:normalizeState(JSON.parse(row.state)),version:row.version}:{state:emptyState(),version:0};}
 export async function rateLimit(key:string,max:number,seconds=600) { const now=Math.floor(Date.now()/1000);const bucket=Math.floor(now/seconds);const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(key));const k=Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,'0')).join('')+':'+bucket;
  const row=await db().prepare('INSERT INTO rate_limits(key,count,expires) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=count+1 RETURNING count').bind(k,now+seconds).first<{count:number}>();if(!row||row.count>max)throw new DomainError('Thao tác hơi nhanh. Mihu chờ một lát rồi thử lại nhé.',429);
 }

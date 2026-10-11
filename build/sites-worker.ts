@@ -2,10 +2,13 @@ import handler from "vinext/server/fetch-handler";
 import { runWithConnectorBinding } from "../lib/connector-context";
 import type { ConnectorBinding } from "../lib/connector-contract.mjs";
 import { sendDueReminders } from "../lib/reminders";
+import { cleanup } from "../lib/maintenance";
 
 export default {
-  scheduled(_event: ScheduledController, _env: Cloudflare.Env, ctx: ExecutionContext) {
+  scheduled(event: ScheduledController, _env: Cloudflare.Env, ctx: ExecutionContext) {
     ctx.waitUntil(sendDueReminders());
+    // Housekeeping once an hour (the cron itself runs every minute for reminders).
+    if (new Date(event.scheduledTime).getUTCMinutes() === 17) ctx.waitUntil(cleanup().catch(() => undefined));
   },
   fetch(request: Request, env: Cloudflare.Env, ctx: ExecutionContext<{ CONNECTORS?: ConnectorBinding }>) {
     let binding = ctx.props?.CONNECTORS;

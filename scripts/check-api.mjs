@@ -59,6 +59,17 @@ st=await mutate({type:'settings.save',settings:{...st.settings,avatar:''}});asse
 const {cleanup}=await import('../lib/maintenance.ts');for(let i=0;i<3;i++)await mutate({type:'budget.set',month:'2026-11',amount:i+1});
 const before=(await env.DB.prepare('SELECT COUNT(*) AS n FROM operations WHERE uid=?').bind('test_mnhat').first()).n;await cleanup();const after=(await env.DB.prepare('SELECT COUNT(*) AS n FROM operations WHERE uid=?').bind('test_mnhat').first()).n;assert.equal(after,before,'recent retry records kept');
 await env.DB.prepare('UPDATE spaces SET version=version+500 WHERE uid=?').bind('test_mnhat').run();await cleanup();assert.equal((await env.DB.prepare('SELECT COUNT(*) AS n FROM operations WHERE uid=?').bind('test_mnhat').first()).n,0);check('Old retry records are pruned, recent ones kept');
+
+const {reminderMessage,reminderLabel}=await import('../lib/reminder-text.ts');
+const sample={title:'Ôn bài kinh tế vi mô',time:'09:00',endTime:'10:30',reminder:15,priority:'high',category:'Học'};
+const priv=reminderMessage(sample,false);assert.equal(priv.title,'Còn 15 phút nữa nhé 🌻');assert.ok(!priv.body.includes('Ôn bài'),'private text hides task title');assert.match(priv.body,/09:00/);
+const full=reminderMessage(sample,true);assert.equal(full.body,'Ôn bài kinh tế vi mô · 09:00–10:30 · Quan trọng · Học');
+assert.equal(reminderMessage({...sample,reminder:0},true).title,'Đến giờ rồi Mihu ơi 🌻');assert.equal(reminderMessage({...sample,reminder:60},false).title,'Còn 1 tiếng nữa nhé 🌻');
+assert.ok(reminderMessage({...sample,title:'x'.repeat(400)},true).body.length<=160);assert.equal(reminderLabel(60),'Trước 1 giờ');assert.equal(reminderLabel(0),'Đúng giờ');check('Reminder text: private by default, detailed when allowed, fits a lock screen');
+const pushRoute=await import('../app/api/push/route.ts');
+const ps=await (await call(pushRoute.GET,'test_mnhat')).json();assert.equal(ps.configured,false);assert.ok(ps.missing.includes('FIREBASE_SERVICE_ACCOUNT'));assert.equal(ps.enabled,false);
+const pt=await call(pushRoute.POST,'test_mnhat',{action:'test'});assert.equal(pt.status,503);check('Push status lists missing settings; test send explains what is wrong');
+version=(await (await call(stateRoute.GET,'test_mnhat')).json()).version;await mutate({type:'task.save',task:{...task,id:'hour-task',time:'08:00',reminder:60}});check('One-hour reminder accepted');
 for(const name of names){await env.DB.prepare('DELETE FROM spaces WHERE uid=?').bind(name).run();await env.DB.prepare('DELETE FROM operations WHERE uid=?').bind(name).run();}
 globalThis.fetch=nativeFetch;
 console.log(`${count} API checks passed; Firebase transport was mocked, local SQLite was real.`);

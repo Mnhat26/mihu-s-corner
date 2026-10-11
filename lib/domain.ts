@@ -12,7 +12,7 @@ const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).or(z.literal('')).def
 export const taskSchema = z.object({ id, title, date: dateSchema, time, endTime: time, note,
   category: z.string().max(60).default('Cá nhân'), priority: z.enum(['low','medium','high']).default('medium'),
   repeat: z.enum(['none','daily','weekly','monthly']).default('none'), weekdays: z.array(z.number().int().min(0).max(6)).max(7).default([]),
-  until: dateSchema.or(z.literal('')).default(''), reminder: z.union([z.literal(-1),z.literal(0),z.literal(5),z.literal(15),z.literal(30)]).default(-1),
+  until: dateSchema.or(z.literal('')).default(''), reminder: z.union([z.literal(-1),z.literal(0),z.literal(5),z.literal(15),z.literal(30),z.literal(60)]).default(-1),
 }).refine(t => !t.until || t.until >= t.date, 'Ngày kết thúc phải sau ngày bắt đầu')
   .refine(t => !t.endTime || (!!t.time && t.endTime > t.time), 'Giờ kết thúc phải sau giờ bắt đầu')
   .refine(t => t.repeat !== 'weekly' || t.weekdays.length > 0, 'Chọn ít nhất một ngày lặp')

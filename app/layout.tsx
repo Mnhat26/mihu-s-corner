@@ -5,12 +5,12 @@ export const metadata: Metadata = {
   title: "Mihu’s Corner",
   referrer: "no-referrer",
   description: "Góc nhỏ của Mihu — lịch hẹn, chi tiêu và những điều đáng nhớ.",
-  manifest: "/manifest.webmanifest",
+  manifest: "/manifest.webmanifest?v=2",
   appleWebApp: { capable: true, title: "Mihu’s Corner", statusBarStyle: "default" },
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
-    apple: "/icon-180.png",
+    icon: "/favicon.svg?v=2",
+    shortcut: "/favicon.svg?v=2",
+    apple: "/icon-180.png?v=2",
   },
 };
 export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover', themeColor: '#fffcf2' };

@@ -1,7 +1,8 @@
 import { env } from 'cloudflare:workers';
 import { emptyState, normalizeState, DomainError } from './domain';
+import { firebasePublic } from './firebase-public';
 export const runtime=env as unknown as Record<string,string> & {DB:D1Database;BUCKET:R2Bucket};
-export function config(key:string) { return runtime[key] || process.env[key] || ''; }
+export function config(key:string) { return runtime[key] || process.env[key] || firebasePublic[key] || ''; }
 export function db(){if(!runtime.DB)throw new DomainError('Kho dữ liệu chưa được kết nối. Vui lòng thử lại sau.',503);return runtime.DB;}
 export async function readState(uid:string) {const row=await db().prepare('SELECT state,version FROM spaces WHERE uid=?').bind(uid).first<{state:string;version:number}>();return row?{state:normalizeState(JSON.parse(row.state)),version:row.version}:{state:emptyState(),version:0};}
 export async function rateLimit(key:string,max:number,seconds=600) { const now=Math.floor(Date.now()/1000);const bucket=Math.floor(now/seconds);const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(key));const k=Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,'0')).join('')+':'+bucket;

@@ -7,7 +7,8 @@ import { reminderMessage } from './reminder-text';
 export function pushMissing() {
   const required = ['FIREBASE_API_KEY', 'FIREBASE_PROJECT_ID', 'FIREBASE_APP_ID', 'FIREBASE_SENDER_ID', 'FIREBASE_VAPID_KEY', 'FIREBASE_SERVICE_ACCOUNT'];
   const missing = required.filter(k => !config(k));
-  if (config('REMINDERS_ENABLED') !== 'true') missing.push('REMINDERS_ENABLED=true');
+  // On unless explicitly switched off (REMINDERS_ENABLED=false), e.g. on a development machine.
+  if (config('REMINDERS_ENABLED') === 'false') missing.push('REMINDERS_ENABLED');
   return missing;
 }
 

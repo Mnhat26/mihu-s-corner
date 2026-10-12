@@ -1,7 +1,7 @@
 import { importPKCS8, SignJWT } from 'jose';
 import { config, db } from './server';
-import { todayVN, addDays, tasksOn, normalizeState, type Occurrence } from './domain';
-import { reminderMessage } from './reminder-text';
+import { todayVN, addDays, tasksOn, normalizeState, nextBreak, type Occurrence, type State } from './domain';
+import { reminderMessage, focusEndMessage } from './reminder-text';
 
 /** Settings the server needs before it can send any push. Names only, never values. */
 export function pushMissing() {
@@ -44,6 +44,29 @@ export async function sendPush(token: string, p: PushPayload, ttlSeconds = 900):
 const dueAt = (t: Pick<Occurrence, 'occurrenceDate' | 'time' | 'reminder'>) => Date.parse(t.occurrenceDate + 'T' + t.time + ':00+07:00') - t.reminder * 60000;
 const sha256 = async (s: string) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))).map(n => n.toString(16).padStart(2, '0')).join('');
 
+/** A focus/break timer that ran out while the app was closed: one push per device, once. */
+async function sendFocusEnd(uid: string, state: State, now: number) {
+  const a = state.focus.active; let sent = 0;
+  if (!a || a.pausedAt !== null || a.endsAt > now || now - a.endsAt > 10 * 60000) return 0;
+  const devices = await db().prepare('SELECT token FROM devices WHERE uid=?').bind(uid).all<{ token: string }>();
+  for (const d of devices.results) {
+    const key = uid + ':focus:' + a.id + ':' + await sha256(d.token);
+    const lock = await db().prepare("INSERT INTO deliveries(key,status,updated) VALUES(?,'sending',?) ON CONFLICT(key) DO UPDATE SET status='sending',updated=excluded.updated WHERE deliveries.status='retry' OR (deliveries.status='sending' AND deliveries.updated<?) RETURNING key").bind(key, now, now - 120000).first();
+    if (!lock) continue;
+    try {
+      const latest = await db().prepare('SELECT state FROM spaces WHERE uid=?').bind(uid).first<{ state: string }>();
+      const fresh = latest ? normalizeState(JSON.parse(latest.state)) : null; const cur = fresh?.focus.active;
+      // Already finished in the open app, stopped, or paused: nothing to say.
+      if (!fresh || !cur || cur.id !== a.id || cur.pausedAt !== null) { await db().prepare("UPDATE deliveries SET status='cancelled',updated=? WHERE key=?").bind(Date.now(), key).run(); continue; }
+      const f = fresh.focus; const after = { ...f, cycle: f.cycle + (cur.mode === 'focus' ? 1 : 0) };
+      const text = focusEndMessage(cur, f.settings[nextBreak(after)], fresh.settings.reminderTitle);
+      if (await sendPush(d.token, { ...text, url: '/?focus=1', tag: 'mihu-focus' }, 600) === 'sent') sent++;
+      await db().prepare("UPDATE deliveries SET status='sent',updated=? WHERE key=?").bind(Date.now(), key).run();
+    } catch { await db().prepare("UPDATE deliveries SET status='retry',updated=? WHERE key=?").bind(Date.now(), key).run(); }
+  }
+  return sent;
+}
+
 /** Runs every minute. Each (task occurrence, device) is sent at most once, within 15 minutes of its time. */
 export async function sendDueReminders() {
   if (pushMissing().length) return { enabled: false, sent: 0 };
@@ -51,6 +74,7 @@ export async function sendDueReminders() {
   const spaces = await db().prepare('SELECT uid,state FROM spaces').all<{ uid: string; state: string }>();
   for (const space of spaces.results) {
     const state = normalizeState(JSON.parse(space.state));
+    sent += await sendFocusEnd(space.uid, state, now);
     const tasks = [addDays(today, -1), today, addDays(today, 1)].flatMap(d => tasksOn(state, d));
     for (const t of tasks) {
       if (t.done || t.reminder < 0 || !t.time) continue;

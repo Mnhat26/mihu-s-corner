@@ -36,3 +36,10 @@ export function reminderMessage(t: Pick<Occurrence, 'title' | 'time' | 'endTime'
 }
 
 export const testMessage = { title: 'Mihu’s Corner 🌻', body: 'Thông báo thử đã đến. Lời nhắc của Mihu sẽ hiện như thế này.' };
+
+/** Lock-screen text when a focus or break timer ends while the app is closed. */
+export function focusEndMessage(a: { mode: 'focus' | 'short' | 'long'; minutes: number; label: string }, breakMinutes: number, detailed: boolean) {
+  if (a.mode !== 'focus') return { title: 'Hết giờ nghỉ rồi ☕', body: 'Sẵn sàng cho phiên tập trung tiếp theo chưa Mihu? Chạm để bắt đầu nhé.' };
+  const what = detailed && a.label ? ` cho “${clip(a.label.trim(), 60)}”` : '';
+  return { title: 'Hết giờ tập trung rồi 🌻', body: `Mihu vừa tập trung ${a.minutes} phút${what}. Nghỉ ${breakMinutes} phút cho mắt và vai thư giãn nhé.` };
+}

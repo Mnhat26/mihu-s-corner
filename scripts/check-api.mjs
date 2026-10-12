@@ -70,6 +70,13 @@ const pushRoute=await import('../app/api/push/route.ts');
 const ps=await (await call(pushRoute.GET,'test_mnhat')).json();assert.equal(ps.configured,false);assert.ok(ps.missing.includes('FIREBASE_SERVICE_ACCOUNT'));assert.equal(ps.enabled,false);
 const pt=await call(pushRoute.POST,'test_mnhat',{action:'test'});assert.equal(pt.status,503);check('Push status lists missing settings; test send explains what is wrong');
 version=(await (await call(stateRoute.GET,'test_mnhat')).json()).version;await mutate({type:'task.save',task:{...task,id:'hour-task',time:'08:00',reminder:60}});check('One-hour reminder accepted');
+
+const {focusToday,weekBars,focusStreak,focusByTask,clock}=await import('../lib/focus.ts');
+const flog=[{date:'2026-10-10',minutes:25,full:true,label:'Ôn bài'},{date:'2026-10-10',minutes:7,full:false,label:''},{date:'2026-10-09',minutes:50,full:true,label:'Ôn bài'},{date:'2026-10-07',minutes:25,full:true,label:'Đọc sách'}];
+assert.deepEqual(focusToday(flog,'2026-10-10'),{minutes:32,sessions:1});assert.equal(focusStreak(flog,'2026-10-10'),2);assert.equal(focusStreak(flog,'2026-10-11'),2,'today empty still keeps yesterday streak');
+assert.equal(weekBars(flog,'2026-10-10').length,7);assert.equal(weekBars(flog,'2026-10-10')[6].minutes,32);assert.deepEqual(focusByTask(flog,'2026-10-04')[0],{label:'Ôn bài',minutes:75});assert.equal(clock(61000),'01:01');
+const {focusEndMessage}=await import('../lib/reminder-text.ts');assert.match(focusEndMessage({mode:'focus',minutes:25,label:'Ôn bài'},5,true).body,/25 phút cho “Ôn bài”.*Nghỉ 5 phút/);assert.ok(!focusEndMessage({mode:'focus',minutes:25,label:'Ôn bài'},5,false).body.includes('Ôn bài'));
+check('Focus stats and end-of-timer text');
 for(const name of names){await env.DB.prepare('DELETE FROM spaces WHERE uid=?').bind(name).run();await env.DB.prepare('DELETE FROM operations WHERE uid=?').bind(name).run();}
 globalThis.fetch=nativeFetch;
 console.log(`${count} API checks passed; Firebase transport was mocked, local SQLite was real.`);

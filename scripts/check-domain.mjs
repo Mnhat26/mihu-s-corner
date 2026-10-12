@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 const root=process.cwd();const temp=path.join(root,'.sites-runtime','tests');await fs.mkdir(temp,{recursive:true});
 const source=await fs.readFile('lib/domain.ts','utf8');await fs.writeFile(path.join(temp,'domain.mjs'),ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText);
-const {emptyState,applyCommand,tasksOn,completion,finances,goalProgress,normalizeState,pendingRecurring,categoryUsage}=await import(pathToFileURL(path.join(temp,'domain.mjs')).href);
+const {emptyState,applyCommand,tasksOn,completion,finances,goalProgress,normalizeState,pendingRecurring,categoryUsage,focusRemaining,nextBreak}=await import(pathToFileURL(path.join(temp,'domain.mjs')).href);
 let count=0;function test(name,fn){fn();count++;console.log('PASS',name);}
 const today='2026-10-10';const task={id:'repeat',title:'Read',date:'2026-10-01',time:'09:00',endTime:'',note:'',category:'Cá nhân',priority:'medium',repeat:'daily',weekdays:[],until:'',reminder:15};
 const run=(s,c)=>applyCommand(s,c,today);
@@ -43,4 +43,19 @@ test('Category budgets and recurring expenses',()=>{let s=run(emptyState(),{type
  s=run(s,{type:'recurring.delete',id:'rent'});assert.equal(s.recurring.length,0);assert.equal(s.recurringSkips.length,0);assert.ok(s.entries.some(e=>e.id==='rec-rent-2026-09'),'recorded entries kept');
  s=run(s,{type:'entry.delete',id:'rec-rent-2026-09'});s=run(s,{type:'categories.set',categories:['Ăn uống','Di chuyển']});assert.deepEqual(Object.keys(s.categoryBudgets),['Ăn uống']);});
 test('Reminder title preference is saved with settings',()=>{const s=run(emptyState(),{type:'settings.save',settings:{...emptyState().settings,reminderTitle:true}});assert.equal(s.settings.reminderTitle,true);const d=run(emptyState(),{type:'settings.save',settings:(({reminderTitle,...r})=>r)(emptyState().settings)});assert.equal(d.settings.reminderTitle,false);});
+
+test('Focus timer: start, pause, resume, complete, stop and cycle',()=>{const T=Date.parse('2026-10-10T02:00:00Z');const at=(s,c,ms)=>applyCommand(s,c,today,T+ms);
+ let s=run(emptyState(),{type:'task.save',task:{...task,repeat:'none',date:today}});
+ s=at(s,{type:'focus.start',mode:'focus',taskId:'repeat',taskDate:today},0);const a=s.focus.active;assert.equal(a.minutes,25);assert.equal(a.label,'Read');
+ assert.throws(()=>at(s,{type:'focus.start',mode:'short'},1000),/Đang có/);
+ s=at(s,{type:'focus.pause'},10*60000);assert.equal(focusRemaining(s.focus.active,T+99*60000),15*60000,'frozen while paused');
+ s=at(s,{type:'focus.resume'},20*60000);assert.equal(s.focus.active.endsAt,T+35*60000);
+ assert.throws(()=>at(s,{type:'focus.complete',id:a.id},30*60000),/chưa hết giờ/);
+ s=at(s,{type:'focus.complete',id:a.id},35*60000);assert.equal(s.focus.active,null);assert.equal(s.focus.log.length,1);assert.equal(s.focus.log[0].minutes,25);assert.equal(s.focus.log[0].date,'2026-10-10');assert.equal(s.focus.cycle,1);
+ assert.deepEqual(at(s,{type:'focus.complete',id:a.id},36*60000).focus,s.focus,'second device completing is a no-op');
+ s=at(s,{type:'focus.start',mode:'focus'},40*60000);s=at(s,{type:'focus.stop'},40*60000+7.5*60000);assert.equal(s.focus.log.at(-1).minutes,7);assert.equal(s.focus.log.at(-1).full,false);assert.equal(s.focus.cycle,1,'stopped early does not count toward the cycle');
+ s=at(s,{type:'focus.start',mode:'focus'},50*60000);s=at(s,{type:'focus.stop'},50*60000+30000);assert.equal(s.focus.log.length,2,'under a minute is not logged');
+ s={...s,focus:{...s.focus,cycle:4}};assert.equal(nextBreak(s.focus),'long');s=at(s,{type:'focus.start',mode:'long'},0);s=at(s,{type:'focus.complete',id:s.focus.active.id},15*60000);assert.equal(s.focus.cycle,0);
+ s=run(s,{type:'focus.settings',settings:{focus:50,short:10,long:20,every:3,goal:180,autoBreak:true}});assert.equal(at(s,{type:'focus.start',mode:'focus'},0).focus.active.minutes,50);
+ assert.throws(()=>run(s,{type:'focus.settings',settings:{focus:500,short:10,long:20,every:3,goal:180,autoBreak:true}}));});
 console.log(`${count} meaningful checks passed.`);

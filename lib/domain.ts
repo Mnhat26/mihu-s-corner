@@ -24,16 +24,25 @@ export type Goal = { id: string; title: string; note: string; period: 'week'|'mo
 export type Settings = { quote: string; accent: 'pink'|'yellow'; theme: 'light'|'dark'|'system'; hidden: string[]; avatar: string; cover: string; photos: string[]; reminderTitle: boolean };
 /** A monthly expense Mihu records with one tap (rent, phone plan…). Never added automatically. */
 export type Recurring = { id: string; category: string; amount: number; day: number; note: string; active: boolean };
+export type FocusMode = 'focus'|'short'|'long';
+export type FocusSettings = { focus: number; short: number; long: number; every: number; goal: number; autoBreak: boolean };
+/** The running timer. Times are epoch ms on the server clock; pausedAt is set while paused. */
+export type FocusActive = { id: string; mode: FocusMode; minutes: number; startedAt: number; endsAt: number; pausedAt: number|null; taskId: string; taskDate: string; label: string };
+/** One focus session that was finished (full) or stopped early after at least a minute. */
+export type FocusEntry = { id: string; date: string; start: number; minutes: number; taskId: string; label: string; full: boolean };
+export type Focus = { settings: FocusSettings; active: FocusActive|null; log: FocusEntry[]; cycle: number };
+export const defaultFocus = (): Focus => ({ settings: { focus: 25, short: 5, long: 15, every: 4, goal: 120, autoBreak: false }, active: null, log: [], cycle: 0 });
 export type State = { tasks: Task[]; overrides: Record<string, {done?:boolean;deleted?:boolean;patch?:Task}>; entries: Entry[];
   budgets: Record<string,number>; rollovers: Record<string,{accepted:boolean;amount:number}>; categories: string[];
   goals: Goal[]; journals: Record<string,{mood:string;text:string}>; settings: Settings;
-  categoryBudgets: Record<string,number>; recurring: Recurring[]; recurringSkips: string[] };
+  categoryBudgets: Record<string,number>; recurring: Recurring[]; recurringSkips: string[]; focus: Focus };
 export function emptyState(): State { return { tasks:[], overrides:{}, entries:[], budgets:{}, rollovers:{}, categories:[...defaultCategories], goals:[], journals:{},
   settings:{quote:'Chậm một chút, Mihu vẫn đang tiến lên.',accent:'pink',theme:'light',hidden:[],avatar:'',cover:'',photos:[],reminderTitle:false},
-  categoryBudgets:{}, recurring:[], recurringSkips:[] }; }
+  categoryBudgets:{}, recurring:[], recurringSkips:[], focus: defaultFocus() }; }
 /** Fill fields added after an account's data was first saved, so older saved data keeps working. */
 export function normalizeState(raw: unknown): State { const base=emptyState(); const s=(raw && typeof raw==='object' ? raw : {}) as Partial<State>;
-  return { ...base, ...s, settings:{ ...base.settings, ...(s.settings||{}) }, categoryBudgets:s.categoryBudgets||{}, recurring:s.recurring||[], recurringSkips:s.recurringSkips||[] }; }
+  return { ...base, ...s, settings:{ ...base.settings, ...(s.settings||{}) }, categoryBudgets:s.categoryBudgets||{}, recurring:s.recurring||[], recurringSkips:s.recurringSkips||[],
+    focus: { ...defaultFocus(), ...(s.focus||{}), settings: { ...defaultFocus().settings, ...(s.focus?.settings||{}) } } }; }
 export const day = (d:Date) => d.toISOString().slice(0,10);
 export const addDays = (s:string,n:number) => day(new Date(Date.parse(s+'T00:00:00Z')+n*86400000));
 export const weekday = (s:string) => new Date(s+'T00:00:00Z').getUTCDay();
@@ -57,11 +66,18 @@ export const recurringDate = (r:Pick<Recurring,'day'>,month:string) => month+'-'
 export function pendingRecurring(s:State,month:string) { return s.recurring.filter(r=>r.active&&!s.recurringSkips.includes(r.id+'_'+month)&&!s.entries.some(e=>e.id===recurringEntryId(r.id,month))); }
 /** Spending per category against its monthly limit (only categories with a limit). */
 export function categoryUsage(s:State,month:string) { return Object.entries(s.categoryBudgets).filter(([c,limit])=>limit>0&&s.categories.includes(c)).map(([category,limit])=>{const spent=s.entries.filter(e=>e.kind==='expense'&&e.category===category&&e.date.startsWith(month)).reduce((a,e)=>a+e.amount,0);return {category,limit,spent,percent:Math.round(spent/limit*100)};}); }
+/** Calendar day in Vietnam for an epoch-ms instant. */
+export const dayVN = (ms:number) => new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(ms));
+/** Milliseconds left on the timer (frozen while paused). */
+export const focusRemaining = (a:FocusActive, now:number) => Math.max(0, a.endsAt - (a.pausedAt ?? now));
+/** Which break comes after the focus session that just ended. */
+export const nextBreak = (f:Focus):FocusMode => f.cycle > 0 && f.cycle % f.settings.every === 0 ? 'long' : 'short';
 export function goalProgress(s:State,g:Goal) { if(g.taskIds.length){const ts=daysBetween(g.start,g.end).flatMap(d=>tasksOn(s,d)).filter(t=>g.taskIds.includes(t.id));return ts.length?Math.floor(ts.filter(t=>t.done).length/ts.length*100):0;}return g.milestones.length?Math.floor(g.milestones.filter(m=>m.done).length/g.milestones.length*100):g.done?100:0; }
 const goalSchema=z.object({id,title,note,period:z.enum(['week','month']),start:dateSchema,end:dateSchema,milestones:z.array(z.object({id,title,done:z.boolean()})).max(50),taskIds:z.array(id).max(500),done:z.boolean()}).refine(g=>g.end>=g.start && daysBetween(g.start,g.end).length<370,'Khoảng thời gian không hợp lệ');
 const entrySchema=z.object({id,date:dateSchema,kind:z.enum(['expense','addition']),amount:money.refine(n=>n>0,'Số tiền phải lớn hơn 0'),category:z.string().trim().max(60),note});
 const recurringSchema=z.object({id,category:z.string().trim().min(1,'Hãy chọn danh mục').max(60),amount:money.refine(n=>n>0,'Số tiền phải lớn hơn 0'),day:z.number().int().min(1).max(31),note:z.string().max(200).default(''),active:z.boolean().default(true)});
-const settingsSchema=z.object({quote:z.string().max(300),accent:z.enum(['pink','yellow']),theme:z.enum(['light','dark','system']),hidden:z.array(z.string().refine(s=>['tasks','finance','goals','journal','photos','week'].includes(s))).max(6),avatar:z.string().max(100),cover:z.string().max(100),photos:z.array(z.string().max(100)).max(6),reminderTitle:z.boolean().default(false)});
+const focusSettingsSchema=z.object({focus:z.number().int().min(5).max(120),short:z.number().int().min(1).max(30),long:z.number().int().min(5).max(60),every:z.number().int().min(2).max(8),goal:z.number().int().min(0).max(960),autoBreak:z.boolean()});
+const settingsSchema=z.object({quote:z.string().max(300),accent:z.enum(['pink','yellow']),theme:z.enum(['light','dark','system']),hidden:z.array(z.string().refine(s=>['tasks','finance','goals','journal','photos','week','focus'].includes(s))).max(7),avatar:z.string().max(100),cover:z.string().max(100),photos:z.array(z.string().max(100)).max(6),reminderTitle:z.boolean().default(false)});
 export const commandSchema=z.discriminatedUnion('type',[
  z.object({type:z.literal('task.save'),task:taskSchema,scope:z.enum(['one','future','all']).default('all'),on:dateSchema.optional()}),
  z.object({type:z.literal('task.delete'),id,on:dateSchema,scope:z.enum(['one','future'])}),
@@ -79,11 +95,14 @@ export const commandSchema=z.discriminatedUnion('type',[
  z.object({type:z.literal('recurring.save'),item:recurringSchema}),z.object({type:z.literal('recurring.delete'),id}),
  z.object({type:z.literal('recurring.apply'),id,month:monthSchema,confirmRollover:z.boolean().optional()}),
  z.object({type:z.literal('recurring.skip'),id,month:monthSchema,skipped:z.boolean()}),
+ z.object({type:z.literal('focus.start'),mode:z.enum(['focus','short','long']),taskId:id.or(z.literal('')).default(''),taskDate:dateSchema.or(z.literal('')).default('')}),
+ z.object({type:z.literal('focus.pause')}),z.object({type:z.literal('focus.resume')}),z.object({type:z.literal('focus.stop')}),
+ z.object({type:z.literal('focus.complete'),id}),z.object({type:z.literal('focus.settings'),settings:focusSettingsSchema}),
 ]);
 export type Command=z.infer<typeof commandSchema>;
 export class DomainError extends Error { constructor(message:string,public status=400,public details?:unknown){super(message);} }
 function requireTask(s:State,id:string,on:string) {const t=s.tasks.find(t=>t.id===id);if(!t||!occurs(t,on))throw new DomainError('Việc này đã thay đổi. Hãy tải lại.',409);return t;}
-export function applyCommand(current:State,raw:unknown,today=todayVN()):State { const c=commandSchema.parse(raw);const s=normalizeState(structuredClone(current));
+export function applyCommand(current:State,raw:unknown,today=todayVN(),now=Date.now()):State { const c=commandSchema.parse(raw);const s=normalizeState(structuredClone(current));
  switch(c.type){
  case 'task.save': { const old=s.tasks.find(t=>t.id===c.task.id); if(old && c.scope==='one'){if(!c.on)throw new DomainError('Thiếu ngày');requireTask(s,old.id,c.on);s.overrides[old.id+'_'+c.on]={...s.overrides[old.id+'_'+c.on],patch:{...c.task,date:old.date,repeat:old.repeat,until:old.until}};}
  else if(old && c.scope==='future'){if(!c.on)throw new DomainError('Thiếu ngày');requireTask(s,old.id,c.on);const newId=crypto.randomUUID();old.until=addDays(c.on,-1);s.tasks.push({...c.task,id:newId,date:c.on});for(const [k,v]of Object.entries(s.overrides)){if(k.startsWith(old.id+'_')&&k.slice(old.id.length+1)>=c.on){s.overrides[newId+k.slice(old.id.length)]=v;delete s.overrides[k];}}for(const g of s.goals)if(g.taskIds.includes(old.id))g.taskIds.push(newId);}
@@ -112,7 +131,19 @@ export function applyCommand(current:State,raw:unknown,today=todayVN()):State { 
  case 'recurring.delete': s.recurring=s.recurring.filter(r=>r.id!==c.id);s.recurringSkips=s.recurringSkips.filter(k=>!k.startsWith(c.id+'_'));break;
  case 'recurring.apply': {const r=s.recurring.find(r=>r.id===c.id);if(!r)throw new DomainError('Khoản định kỳ không còn tồn tại. Hãy tải lại.',409);const entryId=recurringEntryId(r.id,c.month);if(s.entries.some(e=>e.id===entryId))throw new DomainError('Khoản này đã được ghi cho tháng '+c.month.slice(5)+'.');if(!s.categories.includes(r.category))throw new DomainError('Hãy chọn danh mục');s.entries.push({id:entryId,date:recurringDate(r,c.month),kind:'expense',amount:r.amount,category:r.category,note:r.note});s.recurringSkips=s.recurringSkips.filter(k=>k!==r.id+'_'+c.month);break;}
  case 'recurring.skip': {const k=c.id+'_'+c.month;s.recurringSkips=s.recurringSkips.filter(x=>x!==k);if(c.skipped)s.recurringSkips.push(k);s.recurringSkips=s.recurringSkips.slice(-500);break;}
+ case 'focus.start': {const f=s.focus;if(f.active&&focusRemaining(f.active,now)>0)throw new DomainError('Đang có một phiên chạy. Dừng phiên đó trước nhé.',409);
+  let label='';if(c.taskId){if(!c.taskDate)throw new DomainError('Thiếu ngày của việc');const t=tasksOn(s,c.taskDate).find(t=>t.id===c.taskId);if(!t)throw new DomainError('Việc này không còn trong lịch. Hãy tải lại.',409);label=t.title;}
+  const minutes=f.settings[c.mode];f.active={id:crypto.randomUUID(),mode:c.mode,minutes,startedAt:now,endsAt:now+minutes*60000,pausedAt:null,taskId:c.taskId,taskDate:c.taskDate,label};break;}
+ case 'focus.pause': {const a=s.focus.active;if(!a)throw new DomainError('Không có phiên nào đang chạy.',409);if(a.pausedAt===null)a.pausedAt=now;break;}
+ case 'focus.resume': {const a=s.focus.active;if(!a)throw new DomainError('Không có phiên nào đang chạy.',409);if(a.pausedAt!==null){a.endsAt+=now-a.pausedAt;a.pausedAt=null;}break;}
+ case 'focus.stop': {const f=s.focus,a=f.active;if(!a)break;if(a.mode==='focus'){const done=Math.floor((a.minutes*60000-focusRemaining(a,now))/60000);if(done>=1)f.log.push({id:a.id,date:dayVN(a.startedAt),start:a.startedAt,minutes:Math.min(done,a.minutes),taskId:a.taskId,label:a.label,full:done>=a.minutes});}f.active=null;break;}
+ case 'focus.complete': {const f=s.focus,a=f.active;if(!a||a.id!==c.id)break; // already finished on another device
+  if(a.pausedAt!==null||a.endsAt-now>5000)throw new DomainError('Phiên này chưa hết giờ.',409);
+  if(a.mode==='focus'){f.log.push({id:a.id,date:dayVN(a.startedAt),start:a.startedAt,minutes:a.minutes,taskId:a.taskId,label:a.label,full:true});f.cycle+=1;}else if(a.mode==='long')f.cycle=0;
+  f.active=null;break;}
+ case 'focus.settings': s.focus.settings=c.settings;break;
  }
+ if(s.focus.log.length>3000)s.focus.log=s.focus.log.slice(-3000);
  for(const month of new Set([...s.entries.map(e=>e.date.slice(0,7)),...Object.keys(s.budgets)])){const f=finances(s,month);if(![f.total,f.added,f.spent,f.remaining].every(Number.isSafeInteger))throw new DomainError('Tổng tiền vượt giới hạn tính toán chính xác.');}
  const changed:{month:string;before:number;after:number}[]=[];
  for(const month of Object.keys(s.rollovers).sort()){const r=s.rollovers[month];if(!r.accepted)continue;const amount=Math.max(0,finances(s,shiftMonth(month,-1)).remaining);if(amount!==r.amount){changed.push({month,before:r.amount,after:amount});r.amount=amount;}}

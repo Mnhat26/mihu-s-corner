@@ -1,5 +1,5 @@
 /* Mihu's Corner service worker. Personal records and authenticated responses are never cached. */
-const safeUrl = u => typeof u === 'string' && /^\/(\?day=20\d{2}-\d{2}-\d{2})?$/.test(u) ? u : '/';
+const safeUrl = u => typeof u === 'string' && /^\/(\?day=20\d{2}-\d{2}-\d{2}|\?focus=1)?$/.test(u) ? u : '/';
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));
 

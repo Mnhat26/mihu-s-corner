@@ -17,13 +17,14 @@ globalThis.fetch=async(url,options)=>{
  }
  throw Error('Unexpected Firebase call');
 };
-async function call(body,origin=env.APP_ORIGIN){const context={cookies:new Map(),setCookies:[]};const response=await requestContext.run(context,()=>POST(new Request(env.APP_ORIGIN+'/api/auth',{method:'POST',headers:{'Content-Type':'application/json',Origin:origin},body:JSON.stringify(body)})));return {response,context};}
+async function call(body,origin=env.APP_ORIGIN,ip='203.0.113.1'){const context={cookies:new Map(),setCookies:[]};const response=await requestContext.run(context,()=>POST(new Request(env.APP_ORIGIN+'/api/auth',{method:'POST',headers:{'Content-Type':'application/json',Origin:origin,'cf-connecting-ip':ip},body:JSON.stringify(body)})));return {response,context};}
 await env.DB.prepare('DELETE FROM rate_limits').run();
 let count=0;function pass(name){count++;console.log('PASS',name);}
 try{
  let result=await call({action:'send-link',email:' MNHAT@example.test '});assert.equal(result.response.status,200);assert.deepEqual(requests[0].body,{requestType:'EMAIL_SIGNIN',email:'mnhat@example.test',continueUrl:env.APP_ORIGIN+'/',canHandleCodeInApp:true});pass('Allowed email receives passwordless link with fixed callback');
  const before=requests.length;result=await call({action:'send-link',email:'stranger@example.test'});assert.equal(result.response.status,200);assert.equal(requests.length,before);pass('Unknown email gets generic response without email being sent');
  result=await call({action:'send-link',email:'mnhat@example.test'});assert.equal(result.response.status,429);pass('Repeated send is throttled');
+ result=await call({action:'send-link',email:'mnhat@example.test'},env.APP_ORIGIN,'198.51.100.7');assert.equal(result.response.status,200);pass('Someone else spamming the address does not lock out another network');
  result=await call({action:'email-link',email:'mnhat@example.test',code:'valid'});assert.equal(result.response.status,200);const user=(await result.response.json()).user;assert.equal(user.identity,'Mnhat');assert.equal(user.name,'Mihu');assert.equal(user.uid,'link_mnhat');assert.equal(user.idToken,undefined);assert.ok(result.context.setCookies.some(c=>c.includes('mihu_refresh=')&&c.includes('HttpOnly')));pass('Valid link creates private cookie session without exposing tokens');
  result=await call({action:'email-link',email:'mnhat@example.test',code:'valid'});assert.equal(result.response.status,400);assert.equal(result.context.setCookies.length,0);pass('Consumed link cannot create another session');
  result=await call({action:'email-link',email:'mnhat@example.test',code:'expired'});assert.equal(result.response.status,400);pass('Expired link denied');

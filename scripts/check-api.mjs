@@ -77,6 +77,15 @@ assert.deepEqual(focusToday(flog,'2026-10-10'),{minutes:32,sessions:1});assert.e
 assert.equal(weekBars(flog,'2026-10-10').length,7);assert.equal(weekBars(flog,'2026-10-10')[6].minutes,32);assert.deepEqual(focusByTask(flog,'2026-10-04')[0],{label:'Ôn bài',minutes:75});assert.equal(clock(61000),'01:01');
 const {focusEndMessage}=await import('../lib/reminder-text.ts');assert.match(focusEndMessage({mode:'focus',minutes:25,label:'Ôn bài'},5,true).body,/25 phút cho “Ôn bài”.*Nghỉ 5 phút/);assert.ok(!focusEndMessage({mode:'focus',minutes:25,label:'Ôn bài'},5,false).body.includes('Ôn bài'));
 check('Focus stats and end-of-timer text');
+
+const {encodeState,decodeState}=await import('../lib/server.ts');
+const plain=JSON.stringify({...JSON.parse(JSON.stringify((await (await call(stateRoute.GET,'test_mihu')).json()).state)),journals:{'2026-10-01':{mood:'Vui',text:'Hôm nay trời đẹp. '.repeat(400)}}});
+await env.DB.prepare('INSERT OR REPLACE INTO spaces(uid,version,state,updated) VALUES(?,?,?,?)').bind('test_mihu',7,plain,Date.now()).run();
+const legacy=await (await call(stateRoute.GET,'test_mihu')).json();assert.match(legacy.state.journals['2026-10-01'].text,/trời đẹp/);assert.ok(legacy.usage.bytes>7000&&legacy.usage.limit===4000000,'usage reported');
+const saved=await call(stateRoute.POST,'test_mihu',{version:7,operation:crypto.randomUUID(),command:{type:'budget.set',month:'2026-10',amount:1}});assert.equal(saved.status,200);
+const row=await env.DB.prepare('SELECT state FROM spaces WHERE uid=?').bind('test_mihu').first();assert.ok(row.state.startsWith('gz1:'),'stored compressed');assert.ok(row.state.length<plain.length/4,'much smaller: '+row.state.length+' vs '+plain.length);
+assert.equal((await decodeState(row.state)).budgets['2026-10'],1);assert.equal((await decodeState(await encodeState(legacy.state))).journals['2026-10-01'].text,legacy.state.journals['2026-10-01'].text);
+await env.DB.prepare('DELETE FROM spaces WHERE uid=?').bind('test_mihu').run();check('Data is stored compressed; older uncompressed rows still load; usage is reported');
 for(const name of names){await env.DB.prepare('DELETE FROM spaces WHERE uid=?').bind(name).run();await env.DB.prepare('DELETE FROM operations WHERE uid=?').bind(name).run();}
 globalThis.fetch=nativeFetch;
 console.log(`${count} API checks passed; Firebase transport was mocked, local SQLite was real.`);

@@ -13,8 +13,9 @@ export async function POST(request:Request){try{
  if(!authReady())throw new DomainError('Hai tài khoản chưa được cấu hình.',503);
  const email=z.string().trim().toLowerCase().email().max(254).parse(body.email);
  if(action==='send-link'){
-  await rateLimit('send-link:'+email,1,60);
-  await rateLimit('send-link-hour:'+email,3,3600);
+  // Limits are per email AND per network, so someone else spamming Mihu's address cannot lock Mihu out.
+  await rateLimit('send-link:'+email+':'+ip,1,60);
+  await rateLimit('send-link-hour:'+email+':'+ip,3,3600);
   const account=accountConfig().find(a=>a.email===email);
   if(account){
    const origin=new URL(config('APP_ORIGIN'));
@@ -23,7 +24,7 @@ export async function POST(request:Request){try{
   }
   return Response.json({message:'Nếu email thuộc tài khoản đã đăng ký, Firebase sẽ gửi liên kết đăng nhập. Mihu kiểm tra cả thư mục Spam nhé.'},{headers:privateHeaders});
  }
- await rateLimit('email-link:'+email,10);
+ await rateLimit('email-link:'+ip,10);
  const code=z.string().min(1).max(2000).parse(body.code);
  const user=await loginWithEmailLink(email,code);
  return Response.json({user},{headers:privateHeaders});

@@ -1,6 +1,6 @@
 import { importPKCS8, SignJWT } from 'jose';
-import { config, db } from './server';
-import { todayVN, addDays, tasksOn, normalizeState, nextBreak, type Occurrence, type State } from './domain';
+import { config, db, decodeState } from './server';
+import { todayVN, addDays, tasksOn, nextBreak, type Occurrence, type State } from './domain';
 import { reminderMessage, focusEndMessage } from './reminder-text';
 
 /** Settings the server needs before it can send any push. Names only, never values. */
@@ -42,68 +42,77 @@ export async function sendPush(token: string, p: PushPayload, ttlSeconds = 900):
 }
 
 const dueAt = (t: Pick<Occurrence, 'occurrenceDate' | 'time' | 'reminder'>) => Date.parse(t.occurrenceDate + 'T' + t.time + ':00+07:00') - t.reminder * 60000;
+const startsAt = (t: Pick<Occurrence, 'occurrenceDate' | 'time'>) => Date.parse(t.occurrenceDate + 'T' + t.time + ':00+07:00');
 const sha256 = async (s: string) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))).map(n => n.toString(16).padStart(2, '0')).join('');
+const WINDOW = 15 * 60000;
 
-/** A focus/break timer that ran out while the app was closed: one push per device, once. */
-async function sendFocusEnd(uid: string, state: State, now: number) {
-  const a = state.focus.active; let sent = 0;
-  if (!a || a.pausedAt !== null || a.endsAt > now || now - a.endsAt > 10 * 60000) return 0;
+/*
+ * The cron runs every minute. Decoding an account's whole data each minute gets slow as it
+ * grows (and the free plan allows ~10 ms of CPU), so each worker keeps a small "agenda" per
+ * account and rebuilds it only when that account's data version or the day changes.
+ */
+type Item = { kind: 'task'; key: string; due: number } | { kind: 'focus'; key: string; due: number };
+const agendas = new Map<string, { version: number; day: string; items: Item[] }>();
+function buildAgenda(state: State, today: string): Item[] {
+  const items: Item[] = [];
+  for (const t of [addDays(today, -1), today, addDays(today, 1)].flatMap(d => tasksOn(state, d)))
+    if (!t.done && t.reminder >= 0 && t.time) items.push({ kind: 'task', key: t.key, due: dueAt(t) });
+  const a = state.focus.active; if (a && a.pausedAt === null) items.push({ kind: 'focus', key: a.id, due: a.endsAt });
+  return items;
+}
+
+async function deliver(uid: string, key: string, now: number, send: (token: string) => Promise<'sent' | 'gone' | 'skip'>) {
+  let sent = 0;
   const devices = await db().prepare('SELECT token FROM devices WHERE uid=?').bind(uid).all<{ token: string }>();
   for (const d of devices.results) {
-    const key = uid + ':focus:' + a.id + ':' + await sha256(d.token);
-    const lock = await db().prepare("INSERT INTO deliveries(key,status,updated) VALUES(?,'sending',?) ON CONFLICT(key) DO UPDATE SET status='sending',updated=excluded.updated WHERE deliveries.status='retry' OR (deliveries.status='sending' AND deliveries.updated<?) RETURNING key").bind(key, now, now - 120000).first();
+    const lockKey = key + ':' + await sha256(d.token);
+    const lock = await db().prepare("INSERT INTO deliveries(key,status,updated) VALUES(?,'sending',?) ON CONFLICT(key) DO UPDATE SET status='sending',updated=excluded.updated WHERE deliveries.status='retry' OR (deliveries.status='sending' AND deliveries.updated<?) RETURNING key").bind(lockKey, now, now - 120000).first();
     if (!lock) continue;
     try {
-      const latest = await db().prepare('SELECT state FROM spaces WHERE uid=?').bind(uid).first<{ state: string }>();
-      const fresh = latest ? normalizeState(JSON.parse(latest.state)) : null; const cur = fresh?.focus.active;
-      // Already finished in the open app, stopped, or paused: nothing to say.
-      if (!fresh || !cur || cur.id !== a.id || cur.pausedAt !== null) { await db().prepare("UPDATE deliveries SET status='cancelled',updated=? WHERE key=?").bind(Date.now(), key).run(); continue; }
-      const f = fresh.focus; const after = { ...f, cycle: f.cycle + (cur.mode === 'focus' ? 1 : 0) };
-      const text = focusEndMessage(cur, f.settings[nextBreak(after)], fresh.settings.reminderTitle);
-      if (await sendPush(d.token, { ...text, url: '/?focus=1', tag: 'mihu-focus' }, 600) === 'sent') sent++;
-      await db().prepare("UPDATE deliveries SET status='sent',updated=? WHERE key=?").bind(Date.now(), key).run();
-    } catch { await db().prepare("UPDATE deliveries SET status='retry',updated=? WHERE key=?").bind(Date.now(), key).run(); }
+      const r = await send(d.token); if (r === 'sent') sent++;
+      await db().prepare('UPDATE deliveries SET status=?,updated=? WHERE key=?').bind(r === 'skip' ? 'cancelled' : 'sent', Date.now(), lockKey).run();
+    } catch { await db().prepare("UPDATE deliveries SET status='retry',updated=? WHERE key=?").bind(Date.now(), lockKey).run(); }
   }
   return sent;
 }
 
-/** Runs every minute. Each (task occurrence, device) is sent at most once, within 15 minutes of its time. */
 export async function sendDueReminders() {
   if (pushMissing().length) return { enabled: false, sent: 0 };
   const now = Date.now(); const today = todayVN(); let sent = 0;
-  const spaces = await db().prepare('SELECT uid,state FROM spaces').all<{ uid: string; state: string }>();
-  for (const space of spaces.results) {
-    const state = normalizeState(JSON.parse(space.state));
-    sent += await sendFocusEnd(space.uid, state, now);
-    const tasks = [addDays(today, -1), today, addDays(today, 1)].flatMap(d => tasksOn(state, d));
-    for (const t of tasks) {
-      if (t.done || t.reminder < 0 || !t.time) continue;
-      const due = dueAt(t); if (due > now || now - due > 15 * 60000) continue;
-      const devices = await db().prepare('SELECT token FROM devices WHERE uid=?').bind(space.uid).all<{ token: string }>();
-      for (const d of devices.results) {
-        const key = space.uid + ':' + t.key + ':' + due + ':' + await sha256(d.token);
-        const lock = await db().prepare("INSERT INTO deliveries(key,status,updated) VALUES(?,'sending',?) ON CONFLICT(key) DO UPDATE SET status='sending',updated=excluded.updated WHERE deliveries.status='retry' OR (deliveries.status='sending' AND deliveries.updated<?) RETURNING key").bind(key, now, now - 120000).first();
-        if (!lock) continue;
-        try {
-          // Re-read: the task may have been ticked, edited or the device turned off a moment ago.
-          const latest = await db().prepare('SELECT state FROM spaces WHERE uid=?').bind(space.uid).first<{ state: string }>();
-          const fresh = latest ? normalizeState(JSON.parse(latest.state)) : null;
-          const current = fresh ? tasksOn(fresh, t.occurrenceDate).find(item => item.key === t.key) : undefined;
-          const stillRegistered = await db().prepare('SELECT token FROM devices WHERE uid=? AND token=?').bind(space.uid, d.token).first();
-          if (!fresh || !current || current.done || current.reminder < 0 || !current.time || dueAt(current) !== due || !stillRegistered) {
-            await db().prepare("UPDATE deliveries SET status='cancelled',updated=? WHERE key=?").bind(Date.now(), key).run(); continue;
-          }
-          const text = reminderMessage(current, fresh.settings.reminderTitle);
-          // Expire the push once the reminder is no longer useful (but give at least 5 minutes).
-          const ttl = Math.max(300, Math.round((due + 15 * 60000 - Date.now()) / 1000));
-          if (await sendPush(d.token, { ...text, url: '/?day=' + t.occurrenceDate, tag: t.key }, ttl) === 'sent') sent++;
-          await db().prepare("UPDATE deliveries SET status='sent',updated=? WHERE key=?").bind(Date.now(), key).run();
-        } catch {
-          await db().prepare("UPDATE deliveries SET status='retry',updated=? WHERE key=?").bind(Date.now(), key).run();
-        }
+  const versions = await db().prepare('SELECT uid,version FROM spaces').all<{ uid: string; version: number }>();
+  for (const { uid, version } of versions.results) {
+    try { // one broken account never stops the other's reminders
+      let plan = agendas.get(uid);
+      if (!plan || plan.version !== version || plan.day !== today) {
+        const row = await db().prepare('SELECT state,version FROM spaces WHERE uid=?').bind(uid).first<{ state: string; version: number }>();
+        if (!row) continue;
+        plan = { version: row.version, day: today, items: buildAgenda(await decodeState(row.state), today) }; agendas.set(uid, plan);
       }
-    }
+      const due = plan.items.filter(i => i.due <= now && now - i.due <= (i.kind === 'focus' ? 10 * 60000 : WINDOW));
+      if (!due.length) continue;
+      // Data as it is right now: the task may have been ticked or edited a moment ago.
+      const row = await db().prepare('SELECT state FROM spaces WHERE uid=?').bind(uid).first<{ state: string }>();
+      if (!row) continue; const fresh = await decodeState(row.state);
+      for (const item of due) {
+        if (item.kind === 'focus') {
+          sent += await deliver(uid, uid + ':focus:' + item.key, now, async token => {
+            const cur = fresh.focus.active; if (!cur || cur.id !== item.key || cur.pausedAt !== null) return 'skip';
+            const f = fresh.focus; const after = { ...f, cycle: f.cycle + (cur.mode === 'focus' ? 1 : 0) };
+            return sendPush(token, { ...focusEndMessage(cur, f.settings[nextBreak(after)], fresh.settings.reminderTitle), url: '/?focus=1', tag: 'mihu-focus' }, 600);
+          });
+          continue;
+        }
+        const date = item.key.slice(-10);
+        sent += await deliver(uid, uid + ':' + item.key + ':' + item.due, now, async token => {
+          const current = tasksOn(fresh, date).find(t => t.key === item.key);
+          if (!current || current.done || current.reminder < 0 || !current.time || dueAt(current) !== item.due) return 'skip';
+          // Say how long is really left, even when the send runs a little late.
+          const left = Math.round((startsAt(current) - Date.now()) / 60000);
+          const ttl = Math.max(300, Math.round((item.due + WINDOW - Date.now()) / 1000));
+          return sendPush(token, { ...reminderMessage(current, fresh.settings.reminderTitle, left), url: '/?day=' + date, tag: current.key }, ttl);
+        });
+      }
+    } catch (e) { console.error('Reminders failed for one account', e instanceof Error ? e.name : 'unknown'); }
   }
-  await db().batch([db().prepare('DELETE FROM rate_limits WHERE expires<?').bind(Math.floor(now / 1000)), db().prepare('DELETE FROM deliveries WHERE updated<?').bind(now - 30 * 86400000)]);
   return { enabled: true, sent };
 }

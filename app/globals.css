@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap');
 @import 'tailwindcss';
-:root{--ink:#342d35;--muted:#81757e;--pink:#f9dce5;--rose:#ae476d;--blush:#fff7fa;--line:#f0e5ea;--yellow:#f4c64e;--sun:#fff3c4;--butter:#fffcf2;--green:#43836b;--mint:#e7f4ed;--paper:#fff;--bg:var(--blush);--accent:var(--rose);--accent-soft:var(--pink)}
+:root{--ink:#342d35;--muted:#6f636c;--pink:#f9dce5;--rose:#ae476d;--blush:#fff7fa;--line:#f0e5ea;--yellow:#f4c64e;--sun:#fff3c4;--butter:#fffcf2;--green:#43836b;--mint:#e7f4ed;--paper:#fff;--bg:var(--blush);--accent:var(--rose);--accent-soft:var(--pink)}
 *{box-sizing:border-box}body{margin:0;font-family:'Be Vietnam Pro',sans-serif;color:var(--ink);font-size:16px;background:var(--bg);line-height:1.6}button,input,select,textarea{font:inherit}button,a,input,select,textarea{-webkit-tap-highlight-color:transparent}button{cursor:pointer}button:disabled{cursor:wait;opacity:.55}button:focus-visible,a:focus-visible{outline:3px solid var(--rose);outline-offset:4px}input,select,textarea{width:100%;min-width:0;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--paper);color:var(--ink);outline:none}input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent);flex-shrink:0}textarea{resize:vertical;min-height:110px}h1,h2,h3,p{margin:0}h1{font-size:28px;line-height:1.4;font-weight:700}h2{font-size:20px;line-height:1.5;font-weight:600}h3{font-size:17px;font-weight:600}p{color:var(--muted)}small{font-size:13px;color:var(--muted)}a{text-decoration:none;color:inherit}.field{display:flex;flex-direction:column;gap:8px;font-size:14px;font-weight:500;margin:0 0 18px}.field>span{display:flex;align-items:center;gap:6px}.button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:10px 20px;border:1px solid var(--line);border-radius:12px;background:var(--paper);font-size:14px;font-weight:500;color:var(--ink);transition:transform .18s,background .18s,box-shadow .18s}.button:hover{transform:translateY(-1px);box-shadow:0 4px 12px #342d350a}.button.primary{background:var(--accent);border-color:var(--accent);color:white}.button.yellow,.auth-page .button.primary{background:var(--yellow);border-color:var(--yellow);color:#705021}.button.full{width:100%}.button.danger{color:#a73550}.text-button{display:inline-flex;align-items:center;gap:6px;background:none;border:none;padding:8px 0;min-height:40px;color:var(--rose);font-size:14px;font-weight:500}.icon-button{width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;border:none;background:transparent;border-radius:12px;color:var(--muted)}.icon-button:hover{background:var(--accent-soft);color:var(--accent)}.password-input{display:flex;position:relative}.password-input input{padding-right:48px}.password-input button{position:absolute;right:3px;top:3px}.error-banner,.success-banner,.notice{padding:12px 16px;margin:12px 0;border-radius:12px;font-size:14px;overflow-wrap:anywhere}.error-banner{background:#fff0f3;color:#a73550;border:1px solid #efc3cd}.success-banner{background:var(--mint);color:var(--green)}.notice{background:var(--sun);color:#705021}.sunflower{display:inline-block;line-height:1;font-size:40px;user-select:none}.loading{display:grid;min-height:100dvh;place-content:center;text-align:center;gap:20px}.auth-page{min-height:100dvh;background:var(--butter);padding:38px clamp(24px,6vw,96px);position:relative;overflow:hidden}.auth-brand{display:flex;align-items:center;gap:12px;font-size:23px;font-weight:700}.auth-brand .sunflower{font-size:34px}.auth-layout{max-width:1130px;margin:50px auto 25px;display:grid;grid-template-columns:1.2fr 1fr;gap:80px;align-items:center;min-height:650px}.eyebrow{font-size:12px;letter-spacing:.16em;color:#9a7846;font-weight:600}.auth-story h1{font-size:clamp(36px,4vw,55px);line-height:1.25;margin:20px 0 24px;letter-spacing:-.04em}.auth-story p{max-width:440px;font-size:16px;line-height:1.9}.flower-garden{height:215px;display:flex;align-items:center;gap:8px;margin:18px 0 0}.flower-garden .sunflower{font-size:130px;transform:rotate(-15deg)}.flower-garden .sunflower:nth-child(2){font-size:165px;transform:rotate(10deg);margin-top:-20px}.flower-garden .sunflower:nth-child(3){font-size:80px;transform:rotate(20deg);margin-left:-30px;margin-top:60px}.handwritten{font-style:italic;color:#967342;letter-spacing:.01em}.auth-card{background:white;border:1px solid #f0e7d8;border-radius:28px;padding:38px 36px;box-shadow:0 16px 60px #8c622b07}.auth-card .small-flower{font-size:35px;margin-bottom:16px}.auth-card h2{font-size:25px;margin-bottom:8px}.auth-card>p{font-size:14px;line-height:1.8;margin-bottom:25px}.auth-card form{margin-top:28px}.forgot{display:flex;margin:-10px 0 12px auto}.auth-bottom{font-size:13px;text-align:center;margin-top:20px;color:var(--muted)}.auth-footnote{font-size:12px!important;text-align:center;margin:24px 0 0!important;border-top:1px solid var(--line);padding-top:20px}.auth-page footer{display:flex;gap:8px;align-items:center;justify-content:center;color:#9a8b76;font-size:12px;padding-top:24px}.auth-page footer .sunflower{font-size:20px}.back{margin-top:14px}
 @media(max-width:800px){.auth-page{padding:24px 20px}.auth-layout{grid-template-columns:1fr;gap:28px;margin-top:35px;min-height:0}.auth-story{text-align:center}.auth-story h1{font-size:34px;margin:12px 0}.auth-story p{margin:auto;font-size:14px}.flower-garden{display:none}.handwritten{display:none}.auth-card{max-width:470px;width:100%;margin:auto;padding:26px 24px}.auth-brand{font-size:20px}.auth-story .eyebrow{font-size:11px}.auth-page footer{padding-bottom:env(safe-area-inset-bottom)}input,select,textarea{font-size:16px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
@@ -198,3 +198,35 @@ input[type=date]::-webkit-date-and-time-value,input[type=time]::-webkit-date-and
 .money-box>span{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--muted);font-weight:500;pointer-events:none}
 .money-words{font-size:12px;color:var(--muted);font-weight:400}
 .field>.money-input{display:flex;flex-direction:column;align-items:stretch;gap:6px}
+/* ---------- Review fixes (2026-10) ---------- */
+/* Error toasts look like errors */
+.toast.error{background:#fde8ee;border-color:#f3b6c8;color:#a73550}
+.corner.theme-dark .toast.error{background:#432733;border-color:#6b3a4d;color:#ffbdd1}
+/* Dark mode: readable yellow notices, reds and eyebrows */
+.corner.theme-dark .notice,.corner.theme-dark .carry-over,.corner.theme-dark .offline-banner,.corner.theme-dark .notify-status.warn,.corner.theme-dark .yellow:not(.button){color:#f3dfa8}
+.corner.theme-dark .notify-status.warn{border-color:#6b5c33}
+.corner.theme-dark .eyebrow{color:#e2c48a}
+.corner.theme-dark .danger,.corner.theme-dark .button.danger,.corner.theme-dark .category-usage .over small{color:#ff9db8}
+.corner.theme-dark .calendar-day.today .day-heading strong{color:#2a1f26}
+/* Page behind the app follows the theme (iOS bounce, scrollbars) */
+html[data-theme=dark],html[data-theme=dark] body{background:#201c24}
+/* Bigger tap targets */
+.task-check{display:grid;place-items:center;min-width:44px;min-height:44px;margin:-10px -8px -10px -12px;cursor:pointer;flex-shrink:0}
+.task-check input[type=checkbox]{width:22px;height:22px}
+.task-row .icon-button,.transaction>.icon-button{width:40px;height:40px}
+.header-actions .icon-button{width:40px;height:40px}
+.task-row .priority{border-left:0}
+/* Inputs under 16px make iOS zoom in */
+@media(max-width:760px){.filter-row input,.filter-row select,.journal-paper{font-size:16px}}
+/* Native picker fallback for older iOS */
+.soft-select.native{position:relative;display:block}
+.soft-select.native select{-webkit-appearance:none;appearance:none;padding-right:40px}
+.soft-select.native svg{position:absolute;right:14px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--muted)}
+/* iPad portrait: week chips wrap to two lines instead of being cut */
+@media(min-width:761px) and (max-width:1000px){.week .day-tasks .calendar-task{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:11px;padding:3px 5px}}
+/* Phone in landscape: keep the sidebar clear of the notch */
+.sidebar{padding-left:max(24px,env(safe-area-inset-left))}
+@media(max-width:1000px){.sidebar{padding-left:max(14px,env(safe-area-inset-left))}}
+/* Storage meter */
+.storage-bar.near .progress>span{background:var(--yellow)}
+.storage-bar.full .progress>span{background:#d9506f}

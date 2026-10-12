@@ -65,3 +65,13 @@ export async function refreshPush() {
 }
 
 export const sendTestPush = () => api<{ sent: number }>('/api/push', { action: 'test' });
+
+/** On logout: this browser stops being registered, so the next person logging in here gets nothing unasked. */
+export async function forgetDevice() {
+  const was = remembered(); remember(false);
+  try {
+    if (!was || !('Notification' in window) || Notification.permission !== 'granted' || !await isSupported()) return;
+    const status = await api<PushStatus>('/api/push'); if (!status.configured) return;
+    await deleteToken(getMessaging(getApps()[0] || initializeApp(status.firebase)));
+  } catch { /* nothing registered */ }
+}

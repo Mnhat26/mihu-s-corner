@@ -10,7 +10,7 @@ export function reminderLabel(minutes: number) {
 }
 
 function lead(minutes: number) {
-  if (minutes === 0) return 'Đến giờ rồi Mihu ơi 🌻';
+  if (minutes <= 0) return 'Đến giờ rồi Mihu ơi 🌻';
   if (minutes % 60 === 0) return `Còn ${minutes / 60} tiếng nữa nhé 🌻`;
   return `Còn ${minutes} phút nữa nhé 🌻`;
 }
@@ -22,11 +22,12 @@ const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1).trimEnd
  * so the most important words come first and everything stays on one short line.
  * With `detailed` off, the task title never leaves the server (lock screens are visible to others).
  */
-export function reminderMessage(t: Pick<Occurrence, 'title' | 'time' | 'endTime' | 'reminder' | 'priority' | 'category'>, detailed: boolean) {
+/** `minutesLeft` (when known) is the real time until the task starts, so a late send never says "15 phút" when 4 are left. */
+export function reminderMessage(t: Pick<Occurrence, 'title' | 'time' | 'endTime' | 'reminder' | 'priority' | 'category'>, detailed: boolean, minutesLeft: number = t.reminder) {
   const when = t.endTime ? `${t.time}–${t.endTime}` : t.time;
-  const title = lead(t.reminder);
+  const title = lead(minutesLeft);
   if (!detailed) {
-    const body = t.reminder === 0
+    const body = minutesLeft <= 0
       ? `Một việc trong lịch bắt đầu lúc ${t.time}. Chạm để xem nhé.`
       : `Mihu có một việc lúc ${t.time}. Chạm để xem nhé.`;
     return { title, body };

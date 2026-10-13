@@ -230,3 +230,11 @@ html[data-theme=dark],html[data-theme=dark] body{background:#201c24}
 /* Storage meter */
 .storage-bar.near .progress>span{background:var(--yellow)}
 .storage-bar.full .progress>span{background:#d9506f}
+/* Light sea-blue accent: buttons, highlights and the soft page tints turn blue (dashboard keeps its sunflower yellow). */
+.corner.blue-accent{--accent:#2f6aa3;--accent-soft:#dcecfa;--rose:#2f6aa3;--pink:#dcecfa;--blush:#f4f9fe;--bg:#f4f9fe;--line:#e2ecf6}
+.corner.blue-accent.sunny{--bg:var(--butter)}
+.corner.theme-dark.blue-accent{--accent:#8cc4f0;--accent-soft:#233a50;--rose:#8cc4f0;--pink:#233a50;--blush:#232c36;--bg:#1c222a;--line:#3a4a5a;--paper:#232a32}
+.corner.theme-dark.blue-accent .button.primary{color:#13202d}
+.corner.theme-dark.blue-accent.sunny{--bg:#25221c}
+html[data-accent=blue] body{background:#f4f9fe}
+html[data-theme=dark][data-accent=blue],html[data-theme=dark][data-accent=blue] body{background:#1c222a}

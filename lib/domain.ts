@@ -21,7 +21,7 @@ export type Task = z.infer<typeof taskSchema>;
 export type Occurrence = Task & { occurrenceDate: string; key: string; done: boolean };
 export type Entry = { id: string; date: string; kind: 'expense'|'addition'; amount: number; category: string; note: string };
 export type Goal = { id: string; title: string; note: string; period: 'week'|'month'; start: string; end: string; milestones: {id:string;title:string;done:boolean}[]; taskIds: string[]; done: boolean };
-export type Settings = { quote: string; accent: 'pink'|'yellow'; theme: 'light'|'dark'|'system'; hidden: string[]; avatar: string; cover: string; photos: string[]; reminderTitle: boolean };
+export type Settings = { quote: string; accent: 'pink'|'yellow'|'blue'; theme: 'light'|'dark'|'system'; hidden: string[]; avatar: string; cover: string; photos: string[]; reminderTitle: boolean };
 /** A monthly expense Mihu records with one tap (rent, phone plan…). Never added automatically. */
 export type Recurring = { id: string; category: string; amount: number; day: number; note: string; active: boolean; since: string };
 /** Per-occurrence changes. `carried` marks a day whose unfinished task was moved to another day (copy id + date). */
@@ -97,7 +97,7 @@ const goalSchema=z.object({id,title,note,period:z.enum(['week','month']),start:d
 const entrySchema=z.object({id,date:dateSchema,kind:z.enum(['expense','addition']),amount:money.refine(n=>n>0,'Số tiền phải lớn hơn 0'),category:z.string().trim().max(60),note});
 const recurringSchema=z.object({id,category:z.string().trim().min(1,'Hãy chọn danh mục').max(60),amount:money.refine(n=>n>0,'Số tiền phải lớn hơn 0'),day:z.number().int().min(1).max(31),note:z.string().max(200).default(''),active:z.boolean().default(true),since:monthSchema.or(z.literal('')).default('')});
 const focusSettingsSchema=z.object({focus:z.number().int().min(5).max(120),short:z.number().int().min(1).max(30),long:z.number().int().min(5).max(60),every:z.number().int().min(2).max(8),goal:z.number().int().min(0).max(960),autoBreak:z.boolean()});
-const settingsSchema=z.object({quote:z.string().max(300),accent:z.enum(['pink','yellow']),theme:z.enum(['light','dark','system']),hidden:z.array(z.string().refine(s=>['tasks','finance','goals','journal','photos','week','focus'].includes(s))).max(7),avatar:z.string().max(100),cover:z.string().max(100),photos:z.array(z.string().max(100)).max(6),reminderTitle:z.boolean().default(false)});
+const settingsSchema=z.object({quote:z.string().max(300),accent:z.enum(['pink','yellow','blue']),theme:z.enum(['light','dark','system']),hidden:z.array(z.string().refine(s=>['tasks','finance','goals','journal','photos','week','focus'].includes(s))).max(7),avatar:z.string().max(100),cover:z.string().max(100),photos:z.array(z.string().max(100)).max(6),reminderTitle:z.boolean().default(false)});
 export const commandSchema=z.discriminatedUnion('type',[
  z.object({type:z.literal('task.save'),task:taskSchema,scope:z.enum(['one','future','all']).default('all'),on:dateSchema.optional()}),
  z.object({type:z.literal('task.delete'),id,on:dateSchema,scope:z.enum(['one','future'])}),

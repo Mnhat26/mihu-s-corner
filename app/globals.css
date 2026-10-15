@@ -246,3 +246,6 @@ html[data-theme=dark][data-accent=blue],html[data-theme=dark][data-accent=blue] 
 .corner.theme-dark.orange-accent .button.primary{color:#2a160e}
 html[data-accent=orange] body{background:#fdf6f1}
 html[data-theme=dark][data-accent=orange],html[data-theme=dark][data-accent=orange] body{background:#221c1a}
+/* Focus buttons: labels never wrap; on phones the two buttons share the row evenly */
+.focus-actions .button{white-space:nowrap}
+@media(max-width:520px){.focus-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.focus-actions .button,.focus-actions .button.big{min-width:0;width:100%;padding:13px 10px;font-size:15px}.focus-actions>.button:only-child{grid-column:1/-1}}

@@ -238,3 +238,11 @@ html[data-theme=dark],html[data-theme=dark] body{background:#201c24}
 .corner.theme-dark.blue-accent.sunny{--bg:#25221c}
 html[data-accent=blue] body{background:#f4f9fe}
 html[data-theme=dark][data-accent=blue],html[data-theme=dark][data-accent=blue] body{background:#1c222a}
+/* Warm terracotta orange accent */
+.corner.orange-accent{--accent:#b4532f;--accent-soft:#fbe6db;--rose:#b4532f;--pink:#fbe6db;--blush:#fdf6f1;--bg:#fdf6f1;--line:#f3e3d8}
+.corner.orange-accent.sunny{--bg:var(--butter)}
+.corner.theme-dark.orange-accent{--accent:#f0a07f;--accent-soft:#4a2e22;--rose:#f0a07f;--pink:#4a2e22;--blush:#2e2420;--bg:#221c1a;--line:#4d3b33;--paper:#2a2320}
+.corner.theme-dark.orange-accent.sunny{--bg:#25221c}
+.corner.theme-dark.orange-accent .button.primary{color:#2a160e}
+html[data-accent=orange] body{background:#fdf6f1}
+html[data-theme=dark][data-accent=orange],html[data-theme=dark][data-accent=orange] body{background:#221c1a}

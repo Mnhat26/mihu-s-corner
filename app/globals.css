@@ -268,26 +268,36 @@ html[data-theme=dark][data-accent=orange],html[data-theme=dark][data-accent=oran
 /* ---------- Seasonal decoration (behind the content, never in the way) ---------- */
 .main-content{position:relative;z-index:1}
 .season-layer{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
-.season-item{position:absolute;top:-8vh;opacity:.7;animation-name:season-fall;animation-timing-function:linear;animation-iteration-count:infinite;will-change:transform}
+.season-item{position:absolute;top:-8vh;opacity:.85;animation-name:season-fall;animation-timing-function:linear;animation-iteration-count:infinite;will-change:transform}
 .season-item svg{width:100%;height:100%;display:block;animation:season-sway 4.5s ease-in-out infinite alternate}
 .season-summer .season-item{top:auto;bottom:-6vh;animation-name:season-rise;opacity:.5}
 .season-winter .season-item{opacity:.8}
 .season-winter .season-item svg{filter:drop-shadow(0 0 1px #9fb7d6)}
 .season-sun{position:absolute;top:-140px;right:-140px;width:380px;height:380px;border-radius:50%;background:radial-gradient(circle,#ffe7a3aa 0%,#ffe7a333 45%,transparent 70%)}
-.corner.theme-dark .season-item{opacity:.4}
+.corner.theme-dark .season-item{opacity:.6}
 .corner.theme-dark .season-winter .season-item{opacity:.55}
 .corner.theme-dark .season-sun{opacity:.35}
 @keyframes season-fall{from{transform:translate3d(0,0,0) rotate(0)}to{transform:translate3d(-40px,118vh,0) rotate(320deg)}}
 @keyframes season-rise{from{transform:translate3d(0,0,0)}to{transform:translate3d(30px,-118vh,0)}}
 @keyframes season-sway{from{transform:translateX(-10px) rotate(-12deg)}to{transform:translateX(10px) rotate(12deg)}}
 @media(max-width:760px){.season-item:nth-child(n+8){display:none}}
+@media(prefers-reduced-motion:reduce){.season-falling{display:none}}
 @media(prefers-reduced-motion:reduce){.season-item,.season-item svg{animation:none}.season-item{top:auto;bottom:auto}.season-item:nth-child(odd){top:12%}.season-item:nth-child(even){top:70%}}
-.season-corner{position:absolute;top:0;right:0;width:100px;height:44px}
-.season-corner>span{position:absolute;display:block}
-.season-corner svg{width:100%;height:100%;display:block}
-.season-corner .c0{width:40px;height:40px;top:-16px;right:52px;transform:rotate(-18deg)}
-.season-corner .c1{width:26px;height:26px;top:-8px;right:-6px;transform:rotate(24deg);opacity:.9}
-.season-corner .c2{width:22px;height:22px;top:24px;right:-8px;transform:rotate(8deg);opacity:.8}
-.season-summer .season-corner{display:none}
-.corner.theme-dark .season-corner{opacity:.55}
-@media(min-width:761px){.season-corner{transform:scale(1.4);transform-origin:top right}}
+
+.season-garland{position:absolute;top:0;left:0;right:0;height:64px;background-repeat:repeat-x;background-position:center top;pointer-events:none;z-index:0;filter:drop-shadow(0 2px 2px #0000001a)}
+.main-content.has-garland{padding-top:calc(var(--pt,32px) + 34px)}
+@media(max-width:1200px){.main-content.has-garland{--pt:24px}}
+@media(max-width:1000px){.main-content.has-garland{--pt:20px}}
+@media(max-width:760px){.main-content.has-garland{--pt:22px}.season-garland{background-size:224px 51px;height:52px}}
+.corner.theme-dark .season-garland{opacity:.9}
+/* Seasonal background wash: a soft colour at the top of the page */
+.corner .season-layer::before{content:'';position:absolute;inset:0 0 auto;height:55vh;opacity:.55}
+.season-autumn::before{background:linear-gradient(#f6c07a55,transparent)}
+.season-tet::before{background:linear-gradient(#f4a3a355,#ffe08a22 40%,transparent)}
+.season-winter::before{background:linear-gradient(#b9d6f255,transparent)}
+.season-spring::before{background:linear-gradient(#f9c6d655,#d9f0d433 45%,transparent)}
+.season-summer::before{background:linear-gradient(#ffe39a66,transparent)}
+.season-falling{position:fixed;inset:0;z-index:25;pointer-events:none;overflow:hidden}
+.season-pill{display:inline-block;margin-left:10px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;letter-spacing:0;vertical-align:middle;background:#ffffffaa;color:#7a4a1c}
+.season-pill.season-tet{color:#b3121f}.season-pill.season-winter{color:#2b5c8a}.season-pill.season-spring{color:#a3456b}.season-pill.season-summer{color:#9a6a00}
+.corner.theme-dark .season-pill{background:#00000033;color:#f3dfa8}

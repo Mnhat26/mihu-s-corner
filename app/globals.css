@@ -339,3 +339,4 @@ input[type=range].volume{padding:0;min-height:32px;accent-color:var(--accent)}
 .sound-test{margin:-4px 0 6px}
 .welcome-banner.special-women h2{color:#b0386f}
 .corner.theme-dark .welcome-banner.special-women h2{color:#ffc4db}
+.page-footer .whale{display:block;flex:none;animation:whale-bob 3.2s ease-in-out infinite}@keyframes whale-bob{50%{transform:translateY(-2px) rotate(-3deg)}}@media(prefers-reduced-motion:reduce){.page-footer .whale{animation:none}}

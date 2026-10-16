@@ -87,5 +87,8 @@ const row=await env.DB.prepare('SELECT state FROM spaces WHERE uid=?').bind('tes
 assert.equal((await decodeState(row.state)).budgets['2026-10'],1);assert.equal((await decodeState(await encodeState(legacy.state))).journals['2026-10-01'].text,legacy.state.journals['2026-10-01'].text);
 await env.DB.prepare('DELETE FROM spaces WHERE uid=?').bind('test_mihu').run();check('Data is stored compressed; older uncompressed rows still load; usage is reported');
 for(const name of names){await env.DB.prepare('DELETE FROM spaces WHERE uid=?').bind(name).run();await env.DB.prepare('DELETE FROM operations WHERE uid=?').bind(name).run();}
+{const tracked=await env.DB.prepare('SELECT uid,account,ended FROM sessions WHERE id=?').bind('test-device').first();assert.ok(names.includes(tracked.uid));assert.equal(tracked.ended,null);
+await env.DB.prepare('UPDATE sessions SET ended=?,reason=? WHERE id=?').bind(Date.now(),'revoked','test-device').run();const kicked=await call(stateRoute.GET,tracked.uid);assert.equal(kicked.status,401);
+await env.DB.prepare('DELETE FROM sessions WHERE id=?').bind('test-device').run();assert.equal((await call(stateRoute.GET,tracked.uid)).status,200);check('Signed-in browsers are recorded; a session ended from the admin is signed out');}
 globalThis.fetch=nativeFetch;
 console.log(`${count} API checks passed; Firebase transport was mocked, local SQLite was real.`);

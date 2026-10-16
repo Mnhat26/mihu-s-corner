@@ -49,3 +49,4 @@ next-env.d.ts
 
 # Preview images saved by the Claude app (not part of the website)
 /Claude outputs/
+/.env.admin

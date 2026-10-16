@@ -7,7 +7,7 @@ import { Flower, type User } from './auth-screen';
 import { api, ApiError, vnd, dateLabel, safeFetch } from '@/lib/client';
 import { reminderLabel, reminderMessage, reminderOffsets } from '@/lib/reminder-text';
 import { modeLabel, clock, minutesLabel, focusToday, weekBars, focusStreak, focusByTask } from '@/lib/focus';
-import { emptyState, dateSchema, todayVN, addDays, weekStart, shiftMonth, daysBetween, tasksOn, completion, finances, goalProgress, carryable, pendingRecurring, categoryUsage, recurringDate, focusRemaining, nextBreak, type FocusMode, type FocusSettings, type State, type Command, type Occurrence, type Task, type Entry, type Goal, type Settings, type Recurring, type TaskTemplate, taskSchema } from '@/lib/domain';
+import { emptyState, dateSchema, todayVN, addDays, weekStart, shiftMonth, daysBetween, tasksOn, completion, finances, goalProgress, carryable, pendingRecurring, categoryUsage, recurringDate, focusRemaining, nextBreak, type FocusMode, type FocusSettings, type FocusSound, type State, type Command, type Occurrence, type Task, type Entry, type Goal, type Settings, type Recurring, type TaskTemplate, taskSchema } from '@/lib/domain';
 function initialDay(fallback: string) { if (typeof window === 'undefined') return fallback; const parsed = dateSchema.safeParse(new URLSearchParams(location.search).get('day')); return parsed.success ? parsed.data : fallback; }
 type Page = 'dashboard' | 'calendar' | 'finance' | 'goals' | 'journal' | 'focus' | 'settings' | 'account';
 type AppContext = { setSettingsPreview: (s: Settings | null) => void; state: State; today: string; busy: boolean; save: (command: Command) => Promise<void>; notify: (message: string, tone?: 'ok' | 'error') => void; usage: { bytes: number; limit: number } | null; preview: boolean };
@@ -242,30 +242,81 @@ function ReminderTitleToggle() {
 /* ---------- Tập trung (Pomodoro) ---------- */
 let audio: AudioContext | null = null;
 /** iOS only lets a page play sound after a tap, so the context is opened on Start/Resume. */
-function unlockAudio() { try { audio ??= new AudioContext(); if (audio.state === 'suspended') void audio.resume(); } catch { /* no audio */ } }
-function chime() { if (!audio) return; const t0 = audio.currentTime; [784, 988, 1175].forEach((f, i) => { const o = audio!.createOscillator(); const g = audio!.createGain(); o.type = 'sine'; o.frequency.value = f; g.gain.setValueAtTime(0, t0 + i * 0.18); g.gain.linearRampToValueAtTime(0.18, t0 + i * 0.18 + 0.02); g.gain.exponentialRampToValueAtTime(0.001, t0 + i * 0.18 + 0.9); o.connect(g).connect(audio!.destination); o.start(t0 + i * 0.18); o.stop(t0 + i * 0.18 + 1); }); try { navigator.vibrate?.([120, 80, 120]); } catch { } }
+function unlockAudio() { try { audio ??= new AudioContext(); if (audio.state === 'suspended') void audio.resume(); const b = audio.createBufferSource(); b.buffer = audio.createBuffer(1, 1, 22050); b.connect(audio.destination); b.start(); } catch { /* no audio */ } } // the silent blip fully unlocks iOS audio
+/*
+ * Timer sounds, synthesised (no audio files). Each plays through a compressor so it can be loud
+ * without crackling. iPhone: the silent switch mutes web audio, so the ringing dialog and the
+ * notification still tell Mihu the time is up.
+ */
+const SOUND_NAMES: Record<FocusSound, string> = { bell: 'Chuông ngân', soft: 'Đàn gỗ nhẹ nhàng', digital: 'Bíp báo thức', birds: 'Chim hót', off: 'Không phát âm' };
+function playOnce(sound: FocusSound, volume: number): number {
+ if (!audio || sound === 'off') return 0;
+ if (audio.state === 'suspended') void audio.resume();
+ const ctx = audio; const t0 = ctx.currentTime + 0.02;
+ const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -12; comp.ratio.value = 6;
+ const master = ctx.createGain(); master.gain.value = 0.35 + 0.65 * (volume / 100); const out = ctx.createGain(); out.gain.value = 0.85; master.connect(comp).connect(out).connect(ctx.destination); // `out` keeps the compressor's make-up gain below clipping
+ const note = (f: number, at: number, dur: number, type: OscillatorType, peak: number, partials: [number, number][] = [[1, 1]], glideTo?: number) => {
+  for (const [mult, amp] of partials) {
+   const o = ctx.createOscillator(); const g = ctx.createGain(); o.type = type; o.frequency.setValueAtTime(f * mult, t0 + at);
+   if (glideTo) o.frequency.exponentialRampToValueAtTime(glideTo * mult, t0 + at + dur * 0.6);
+   g.gain.setValueAtTime(0.0001, t0 + at); g.gain.exponentialRampToValueAtTime(peak * amp, t0 + at + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + dur);
+   o.connect(g).connect(master); o.start(t0 + at); o.stop(t0 + at + dur + 0.05);
+  }
+ };
+ const bell: [number, number][] = [[1, 1], [2.01, 0.55], [2.76, 0.38], [4.07, 0.22], [5.4, 0.12]];
+ if (sound === 'bell') { note(784, 0, 2.4, 'sine', 0.5, bell); note(659, 0.6, 2.4, 'sine', 0.5, bell); note(988, 1.2, 2.2, 'sine', 0.42, bell); return 3.2; }
+ if (sound === 'soft') { [523, 659, 784, 1047, 784, 1047].forEach((f, i) => note(f, i * 0.17, 0.7, 'triangle', 0.9, [[1, 1], [4, 0.15]])); return 1.7; }
+ if (sound === 'digital') { [0, 0.18, 0.36, 0.54, 1.0, 1.18, 1.36, 1.54].forEach(at => note(1760, at, 0.12, 'square', 0.35)); return 1.8; }
+ [0, 0.22, 0.38, 0.9, 1.08, 1.3].forEach((at, i) => note(2400 + (i % 3) * 300, at, 0.14, 'sine', 0.8, [[1, 1]], 3800 + (i % 2) * 400)); return 1.7; // birds
+}
+/** Rings like an alarm: repeats until stopped (at most a minute), or plays twice when `until` is off. */
+function startRinging(sound: FocusSound, volume: number, until: boolean) {
+ let stopped = false; let timer = 0; const startedAt = Date.now();
+ const loop = (round: number) => {
+  if (stopped) return; const len = playOnce(sound, volume); try { navigator.vibrate?.([300, 150, 300, 150, 300]); } catch { }
+  if ((until && Date.now() - startedAt < 60000) || (!until && round < 1)) timer = window.setTimeout(() => loop(round + 1), Math.max(1200, (len + 0.9) * 1000));
+ };
+ loop(0);
+ return () => { stopped = true; clearTimeout(timer); try { navigator.vibrate?.(0); } catch { } };
+}
 function useNow(active: boolean) { const [now, setNow] = useState(() => Date.now()); useEffect(() => { if (!active) return; const t = setInterval(() => setNow(Date.now()), 500); return () => clearInterval(t); }, [active]); return now; }
 
 /** Finishes the running timer when it reaches zero, wherever Mihu is in the app. */
 function FocusEngine() {
- const { state, save, notify, today } = useApp(); const a = state.focus.active; const now = useNow(!!a && a.pausedAt === null); const done = useRef(''); const [retry, setRetry] = useState(0);
+ const { state, save, notify, today } = useApp(); const a = state.focus.active; const now = useNow(!!a && a.pausedAt === null); const done = useRef(''); const rang = useRef(''); const [retry, setRetry] = useState(0);
+ const [ringing, setRinging] = useState<{ title: string; body: string; stop: () => void; resolve: () => void } | null>(null);
  const left = a ? focusRemaining(a, now) : 0;
+ // After a reload mid-session, the first tap anywhere re-enables sound for the coming bell.
+ useEffect(() => { if (!a) return; const on = () => unlockAudio(); document.addEventListener('pointerdown', on, { passive: true }); document.addEventListener('keydown', on); return () => { document.removeEventListener('pointerdown', on); document.removeEventListener('keydown', on); }; }, [a?.id]); // eslint-disable-line react-hooks/exhaustive-deps
  useEffect(() => { const base = 'Mihu’s Corner'; document.title = a ? `${a.pausedAt !== null ? '⏸' : a.mode === 'focus' ? '🌻' : '☕'} ${clock(left)} · ${base}` : base; }, [a, left]);
  useEffect(() => {
   if (!a || a.pausedAt !== null || left > 0 || done.current === a.id) return;
-  done.current = a.id; const finished = a;
+  done.current = a.id; const finished = a; const set = state.focus.settings;
+  // Ring the moment time is up (before saving), once per session, and wait for "Tắt chuông".
+  let heard: Promise<void> = Promise.resolve();
+  if (rang.current !== finished.id) { rang.current = finished.id; const stop = startRinging(set.sound, set.volume, set.ringUntil);
+   const next = finished.mode === 'focus' ? nextBreak({ ...state.focus, cycle: state.focus.cycle + 1 }) : null;
+   heard = new Promise<void>(resolve => setRinging({ title: finished.mode === 'focus' ? '⏰ Hết giờ tập trung rồi!' : '☕ Hết giờ nghỉ rồi!', body: finished.mode === 'focus' ? `Mihu vừa tập trung ${finished.minutes} phút. Nghỉ ${set[next!]} phút cho mắt và vai thư giãn nhé.` : 'Sẵn sàng cho phiên tập trung tiếp theo chưa Mihu?', stop, resolve }));
+   if (document.visibilityState === 'hidden' && 'Notification' in window && Notification.permission === 'granted') { try { new Notification(finished.mode === 'focus' ? 'Hết giờ tập trung rồi 🌻' : 'Hết giờ nghỉ rồi ☕', { body: 'Mở góc nhỏ để tắt chuông nhé.', icon: '/icon-192.png', tag: 'mihu-focus' }); } catch { } }
+  }
   (async () => {
    try { await save({ type: 'focus.complete', id: finished.id }); } catch { done.current = ''; setTimeout(() => setRetry(n => n + 1), 5000); return; } // try again shortly (busy, offline or clock drift)
-   chime();
-   if (finished.mode !== 'focus') { notify('Hết giờ nghỉ rồi. Sẵn sàng cho phiên tiếp theo nhé!'); return; }
+   await heard;
+   if (finished.mode !== 'focus') return;
    const f = state.focus; const next = nextBreak({ ...f, cycle: f.cycle + 1 });
-   notify(`🌻 Xong ${finished.minutes} phút tập trung! Nghỉ ${f.settings[next]} phút nhé.`);
    const task = finished.taskId ? tasksOn(state, finished.taskDate).find(t => t.id === finished.taskId) : undefined;
    if (task && !task.done && finished.taskDate <= today && await askConfirmation(`Mihu đã xong “${task.title}” chưa? Đánh dấu hoàn thành luôn nhé?`)) { try { await save({ type: 'task.toggle', id: task.id, on: finished.taskDate, done: true }); } catch (e) { notify((e as Error).message, 'error'); } }
    if (f.settings.autoBreak) { try { await save({ type: 'focus.start', mode: next, taskId: '', taskDate: '' }); } catch { } }
   })();
  }, [a, left, retry]); // eslint-disable-line react-hooks/exhaustive-deps
- return null;
+ return ringing ? <RingingDialog title={ringing.title} body={ringing.body} onStop={() => { ringing.stop(); ringing.resolve(); setRinging(null); }} /> : null;
+}
+function RingingDialog({ title, body, onStop }: { title: string; body: string; onStop: () => void }) {
+ const ref = useRef<HTMLDialogElement>(null); useEffect(() => { const d = ref.current; d?.showModal(); return () => d?.close(); }, []);
+ return <dialog ref={ref} className="choice-dialog ringing-dialog" role="alertdialog" aria-labelledby="ring-title" onCancel={e => { e.preventDefault(); onStop(); }}>
+  <div className="ring-bell" aria-hidden="true"><Bell size={44} /></div><h2 id="ring-title">{title}</h2><p>{body}</p>
+  <button type="button" className="button primary big" autoFocus onClick={onStop}>Tắt chuông</button>
+ </dialog>;
 }
 
 function FocusRing({ left, total, mode, paused }: { left: number; total: number; mode: FocusMode; paused: boolean }) {
@@ -321,17 +372,25 @@ function FocusPage() {
 }
 
 function FocusSettingsForm({ onClose }: { onClose: () => void }) {
- const { state, save } = useApp(); const s = state.focus.settings; const [error, setError] = useState('');
+ const { state, save } = useApp(); const s = state.focus.settings; const [error, setError] = useState(''); const [sound, setSound] = useState<FocusSound>(s.sound); const [volume, setVolume] = useState(s.volume); const stopTest = useRef<(() => void) | null>(null);
+ useEffect(() => () => stopTest.current?.(), []);
  const num = (name: keyof FocusSettings, label: string, min: number, max: number, hint?: string) => <label className="field">{label}<input name={name} type="number" inputMode="numeric" required min={min} max={max} step={1} defaultValue={s[name] as number} />{hint && <small>{hint}</small>}</label>;
- return <Modal title="Tùy chỉnh tập trung" onClose={onClose}><form onSubmit={async e => { e.preventDefault(); const f = new FormData(e.currentTarget); const n = (k: string) => Number(f.get(k)); try { await save({ type: 'focus.settings', settings: { focus: n('focus'), short: n('short'), long: n('long'), every: n('every'), goal: n('goal'), autoBreak: f.get('autoBreak') === 'on' } }); onClose(); } catch (err) { setError((err as Error).message); } }}>
+ return <Modal title="Tùy chỉnh tập trung" onClose={onClose}><form onSubmit={async e => { e.preventDefault(); stopTest.current?.(); const f = new FormData(e.currentTarget); const n = (k: string) => Number(f.get(k)); try { await save({ type: 'focus.settings', settings: { focus: n('focus'), short: n('short'), long: n('long'), every: n('every'), goal: n('goal'), autoBreak: f.get('autoBreak') === 'on', sound, volume, ringUntil: f.get('ringUntil') === 'on' } }); onClose(); } catch (err) { setError((err as Error).message); } }}>
   <div className="form-grid">{num('focus', 'Tập trung (phút)', 5, 120)}{num('short', 'Nghỉ ngắn (phút)', 1, 30)}</div>
   <div className="form-grid">{num('long', 'Nghỉ dài (phút)', 5, 60)}{num('every', 'Nghỉ dài sau mỗi', 2, 8, 'phiên tập trung')}</div>
   {num('goal', 'Mục tiêu mỗi ngày (phút)', 0, 960, '0 nếu không đặt mục tiêu')}
   <label className="check-label"><input type="checkbox" name="autoBreak" defaultChecked={s.autoBreak} />Tự bắt đầu giờ nghỉ khi hết phiên tập trung</label>
+  <h3 className="sound-heading">Chuông báo hết giờ</h3>
+  <label className="field">Âm thanh<SoftSelect value={sound} onChange={e => setSound(e.target.value as FocusSound)}>{(Object.keys(SOUND_NAMES) as FocusSound[]).map(k => <option key={k} value={k}>{SOUND_NAMES[k]}</option>)}</SoftSelect></label>
+  <label className="field">Âm lượng · {volume}%<input type="range" min={10} max={100} step={10} value={volume} onChange={e => setVolume(Number(e.target.value))} className="volume" disabled={sound === 'off'} /></label>
+  <button type="button" className="button sound-test" disabled={sound === 'off'} onClick={() => { unlockAudio(); stopTest.current?.(); stopTest.current = startRinging(sound, volume, false); }}><Bell size={16} />Nghe thử</button>
+  <label className="check-label"><input type="checkbox" name="ringUntil" defaultChecked={s.ringUntil} />Đổ chuông đến khi bấm “Tắt chuông” (tối đa 1 phút)</label>
+  <p className="support-line">Trên iPhone, nếu gạt nút im lặng thì web không phát được tiếng. Khi đó vẫn có bảng báo hết giờ và thông báo nếu đã bật nhắc việc.</p>
   {error && <p className="error-banner" role="alert">{error}</p>}
   <div className="form-actions"><button type="button" className="button" onClick={onClose}>Để sau</button><Submit /></div>
  </form></Modal>;
 }
+
 
 /** Small timer shown on other pages while a session runs. */
 function FocusPill({ open }: { open: () => void }) {

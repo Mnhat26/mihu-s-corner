@@ -29,13 +29,14 @@ export type Recurring = { id: string; category: string; amount: number; day: num
 /** Per-occurrence changes. `carried` marks a day whose unfinished task was moved to another day (copy id + date). */
 export type Override = { done?: boolean; deleted?: boolean; patch?: Task; carried?: { id: string; date: string } };
 export type FocusMode = 'focus'|'short'|'long';
-export type FocusSettings = { focus: number; short: number; long: number; every: number; goal: number; autoBreak: boolean };
+export type FocusSound = 'bell'|'soft'|'digital'|'birds'|'off';
+export type FocusSettings = { focus: number; short: number; long: number; every: number; goal: number; autoBreak: boolean; sound: FocusSound; volume: number; ringUntil: boolean };
 /** The running timer. Times are epoch ms on the server clock; pausedAt is set while paused. */
 export type FocusActive = { id: string; mode: FocusMode; minutes: number; startedAt: number; endsAt: number; pausedAt: number|null; taskId: string; taskDate: string; label: string };
 /** One focus session that was finished (full) or stopped early after at least a minute. */
 export type FocusEntry = { id: string; date: string; start: number; minutes: number; taskId: string; label: string; full: boolean };
 export type Focus = { settings: FocusSettings; active: FocusActive|null; log: FocusEntry[]; cycle: number };
-export const defaultFocus = (): Focus => ({ settings: { focus: 25, short: 5, long: 15, every: 4, goal: 120, autoBreak: false }, active: null, log: [], cycle: 0 });
+export const defaultFocus = (): Focus => ({ settings: { focus: 25, short: 5, long: 15, every: 4, goal: 120, autoBreak: false, sound: 'bell', volume: 80, ringUntil: true }, active: null, log: [], cycle: 0 });
 export type State = { tasks: Task[]; overrides: Record<string, Override>; entries: Entry[];
   budgets: Record<string,number>; rollovers: Record<string,{accepted:boolean;amount:number}>; categories: string[];
   goals: Goal[]; journals: Record<string,{mood:string;text:string}>; settings: Settings;
@@ -99,7 +100,7 @@ const goalSchema=z.object({id,title,note,period:z.enum(['week','month']),start:d
 const entrySchema=z.object({id,date:dateSchema,kind:z.enum(['expense','addition']),amount:money.refine(n=>n>0,'Số tiền phải lớn hơn 0'),category:z.string().trim().max(60),note});
 const recurringSchema=z.object({id,category:z.string().trim().min(1,'Hãy chọn danh mục').max(60),amount:money.refine(n=>n>0,'Số tiền phải lớn hơn 0'),day:z.number().int().min(1).max(31),note:z.string().max(200).default(''),active:z.boolean().default(true),since:monthSchema.or(z.literal('')).default('')});
 const templateSchema=z.object({id,title,time,endTime:time,category:z.string().trim().max(60).default('Cá nhân'),priority:z.enum(['low','medium','high']).default('medium'),reminder:z.union([z.literal(-1),z.literal(0),z.literal(5),z.literal(15),z.literal(30),z.literal(60)]).default(-1),note}).refine(t=>!t.endTime||(!!t.time&&t.endTime>t.time),'Giờ kết thúc phải sau giờ bắt đầu').refine(t=>t.reminder===-1||!!t.time,'Cần có giờ để nhắc việc');
-const focusSettingsSchema=z.object({focus:z.number().int().min(5).max(120),short:z.number().int().min(1).max(30),long:z.number().int().min(5).max(60),every:z.number().int().min(2).max(8),goal:z.number().int().min(0).max(960),autoBreak:z.boolean()});
+const focusSettingsSchema=z.object({focus:z.number().int().min(5).max(120),short:z.number().int().min(1).max(30),long:z.number().int().min(5).max(60),every:z.number().int().min(2).max(8),goal:z.number().int().min(0).max(960),autoBreak:z.boolean(),sound:z.enum(['bell','soft','digital','birds','off']).default('bell'),volume:z.number().int().min(10).max(100).default(80),ringUntil:z.boolean().default(true)});
 const settingsSchema=z.object({quote:z.string().max(300),accent:z.enum(['pink','yellow','blue','orange']),theme:z.enum(['light','dark','system']),hidden:z.array(z.string().refine(s=>['tasks','finance','goals','journal','photos','week','focus'].includes(s))).max(7),avatar:z.string().max(100),cover:z.string().max(100),photos:z.array(z.string().max(100)).max(6),reminderTitle:z.boolean().default(false),seasonal:z.boolean().default(true)});
 export const commandSchema=z.discriminatedUnion('type',[
  z.object({type:z.literal('task.save'),task:taskSchema,scope:z.enum(['one','future','all']).default('all'),on:dateSchema.optional()}),

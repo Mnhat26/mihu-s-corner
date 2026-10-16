@@ -281,7 +281,7 @@ html[data-theme=dark][data-accent=orange],html[data-theme=dark][data-accent=oran
 @keyframes season-rise{from{transform:translate3d(0,0,0)}to{transform:translate3d(30px,-118vh,0)}}
 @keyframes season-sway{from{transform:translateX(-10px) rotate(-12deg)}to{transform:translateX(10px) rotate(12deg)}}
 @media(max-width:760px){.season-item:nth-child(n+8){display:none}}
-@media(prefers-reduced-motion:reduce){.season-falling{display:none}}
+@media(prefers-reduced-motion:reduce){.season-item,.season-balloon{display:none}}
 @media(prefers-reduced-motion:reduce){.season-item,.season-item svg{animation:none}.season-item{top:auto;bottom:auto}.season-item:nth-child(odd){top:12%}.season-item:nth-child(even){top:70%}}
 
 .season-garland{position:absolute;top:0;left:0;right:0;height:64px;background-repeat:repeat-x;background-position:center top;pointer-events:none;z-index:0;filter:drop-shadow(0 2px 2px #0000001a)}
@@ -297,7 +297,31 @@ html[data-theme=dark][data-accent=orange],html[data-theme=dark][data-accent=oran
 .season-winter::before{background:linear-gradient(#b9d6f255,transparent)}
 .season-spring::before{background:linear-gradient(#f9c6d655,#d9f0d433 45%,transparent)}
 .season-summer::before{background:linear-gradient(#ffe39a66,transparent)}
-.season-falling{position:fixed;inset:0;z-index:25;pointer-events:none;overflow:hidden}
 .season-pill{display:inline-block;margin-left:10px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;letter-spacing:0;vertical-align:middle;background:#ffffffaa;color:#7a4a1c}
 .season-pill.season-tet{color:#b3121f}.season-pill.season-winter{color:#2b5c8a}.season-pill.season-spring{color:#a3456b}.season-pill.season-summer{color:#9a6a00}
 .corner.theme-dark .season-pill{background:#00000033;color:#f3dfa8}
+/* Special days: 20/10 and birthday */
+.season-women::before{background:linear-gradient(#f7b6c866,#ffe1ea33 45%,transparent)}
+.season-birthday::before{background:linear-gradient(#ffd6e766,#fff1b844 45%,transparent)}
+.season-pill.season-women{color:#b3365e}.season-pill.season-birthday{color:#9a3d8a}
+.season-balloon{position:absolute;bottom:-90px;width:46px;height:69px;opacity:.85;animation-name:season-rise;animation-timing-function:linear;animation-iteration-count:infinite}
+.season-balloon svg{width:100%;height:100%;animation:season-sway 3.5s ease-in-out infinite alternate}
+.corner.theme-dark .season-balloon{opacity:.55}
+.birthday-garland{position:absolute;top:0;left:0;right:0;height:64px;display:flex;justify-content:center;align-items:flex-start;gap:4px;padding:0 10px;pointer-events:none;z-index:0}
+.birthday-garland .string{position:absolute;inset:0 0 auto;width:100%;height:30px}
+.birthday-garland .flag{position:relative;width:24px;height:30px;margin-top:0;display:flex;justify-content:center;padding-top:3px;font-weight:700;font-size:12px;color:#fff;text-shadow:0 1px 1px #00000033;clip-path:polygon(0 0,100% 0,100% 100%,50% 78%,0 100%);transform-origin:top center}
+.birthday-garland .gap{width:10px}
+@media(min-width:761px){.birthday-garland{gap:8px}.birthday-garland .flag{width:34px;height:42px;font-size:16px}.birthday-garland .gap{width:22px}}
+.welcome-banner.special-birthday{background:linear-gradient(135deg,#ffe3ee,#fff3c4 60%,#e6f4ff);border-color:#f6c6d8}
+.welcome-banner.special-birthday h2{color:#b0386f}
+.welcome-banner.special-birthday p{color:#8a5a6e}
+.welcome-banner.special-women{background:linear-gradient(135deg,#ffe6ee,#fff3c4);border-color:#f6c6d8}
+.corner.theme-dark .welcome-banner.special-birthday,.corner.theme-dark .welcome-banner.special-women{background:linear-gradient(135deg,#4a2a3a,#463d25)}
+.corner.theme-dark .welcome-banner.special-birthday h2{color:#ffc4db}
+.corner.theme-dark .welcome-banner.special-birthday p{color:#e8c7d4}
+.birthday-cake{width:min(170px,100%);height:auto;filter:drop-shadow(0 6px 10px #b0386f22)}
+.birthday-cake .flame{transform-origin:center bottom;animation:flame .9s ease-in-out infinite alternate}
+@keyframes flame{from{transform:scaleY(.9) rotate(-3deg)}to{transform:scaleY(1.08) rotate(3deg)}}
+@media(max-width:760px){.banner-flowers .birthday-cake{width:100%;margin-top:10px}}
+@media(prefers-reduced-motion:reduce){.birthday-cake .flame{animation:none}}
+@media(max-width:760px){.welcome-banner.special-birthday h2{font-size:23px;line-height:1.35}}

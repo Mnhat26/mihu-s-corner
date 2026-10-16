@@ -337,3 +337,5 @@ html[data-theme=dark][data-accent=orange],html[data-theme=dark][data-accent=oran
 .sound-heading{margin:18px 0 10px;font-size:15px}
 input[type=range].volume{padding:0;min-height:32px;accent-color:var(--accent)}
 .sound-test{margin:-4px 0 6px}
+.welcome-banner.special-women h2{color:#b0386f}
+.corner.theme-dark .welcome-banner.special-women h2{color:#ffc4db}

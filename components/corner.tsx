@@ -249,7 +249,7 @@ function unlockAudio() { try { audio ??= new AudioContext(); if (audio.state ===
  * without crackling. iPhone: the silent switch mutes web audio, so the ringing dialog and the
  * notification still tell Mihu the time is up.
  */
-const SOUND_NAMES: Record<FocusSound, string> = { bell: 'Reng reng (đồng hồ báo thức)', soft: 'Đàn gỗ nhẹ nhàng', digital: 'Bíp báo thức', birds: 'Chim hót', off: 'Không phát âm' };
+const SOUND_NAMES: Record<FocusSound, string> = { bell: 'Reng reng', soft: 'Đàn gỗ', digital: 'Bíp báo thức', birds: 'Chim hót', off: 'Không phát âm' };
 function playOnce(sound: FocusSound, volume: number): number {
  if (!audio || sound === 'off') return 0;
  if (audio.state === 'suspended') void audio.resume();

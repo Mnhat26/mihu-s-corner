@@ -46,3 +46,6 @@ next-env.d.ts
 /.codex/
 /outputs/
 /work/
+
+# Preview images saved by the Claude app (not part of the website)
+/Claude outputs/

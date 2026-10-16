@@ -86,4 +86,11 @@ test('Recurring expenses start from their month; paused or future months cannot 
 test('Focus: stopping after time is up counts as a full session; slightly early completion is accepted',()=>{const T=Date.parse('2026-10-10T02:00:00Z');const at=(s,c,ms)=>applyCommand(s,c,today,T+ms);
  let s=at(emptyState(),{type:'focus.start',mode:'focus'},0);s=at(s,{type:'focus.stop'},26*60000);assert.equal(s.focus.cycle,1);assert.equal(s.focus.log[0].full,true);
  s=at(s,{type:'focus.start',mode:'focus'},30*60000);s=at(s,{type:'focus.complete',id:s.focus.active.id},30*60000+25*60000-30000);assert.equal(s.focus.cycle,2);});
+
+test('Task templates: saved, replaced, limited and validated; seasonal decoration on by default',()=>{const t={id:'tp1',title:'Đi chợ',time:'17:30',endTime:'18:00',category:'Nhà',priority:'low',reminder:15,note:''};
+ let s=run(emptyState(),{type:'template.save',template:t});assert.equal(s.templates.length,1);s=run(s,{type:'template.save',template:{...t,title:'Đi chợ tối'}});assert.equal(s.templates.length,1);assert.equal(s.templates[0].title,'Đi chợ tối');
+ assert.throws(()=>run(s,{type:'template.save',template:{...t,id:'x',time:'',reminder:15}}),/Cần có giờ/);
+ for(let i=0;i<19;i++)s=run(s,{type:'template.save',template:{...t,id:'m'+i}});assert.throws(()=>run(s,{type:'template.save',template:{...t,id:'over'}}),/Tối đa 20/);
+ s=run(s,{type:'template.delete',id:'tp1'});assert.equal(s.templates.length,19);
+ assert.equal(emptyState().settings.seasonal,true);assert.equal(normalizeState({settings:{quote:'x'}}).settings.seasonal,true);assert.deepEqual(normalizeState({}).templates,[]);});
 console.log(`${count} meaningful checks passed.`);

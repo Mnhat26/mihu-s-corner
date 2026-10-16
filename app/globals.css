@@ -249,3 +249,45 @@ html[data-theme=dark][data-accent=orange],html[data-theme=dark][data-accent=oran
 /* Focus buttons: labels never wrap; on phones the two buttons share the row evenly */
 .focus-actions .button{white-space:nowrap}
 @media(max-width:520px){.focus-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.focus-actions .button,.focus-actions .button.big{min-width:0;width:100%;padding:13px 10px;font-size:15px}.focus-actions>.button:only-child{grid-column:1/-1}}
+/* ---------- Task templates ---------- */
+.template-pick{margin:0 0 14px}
+.template-pick>small,.template-quick small{font-size:12px;color:var(--muted)}
+.template-chips{display:flex;gap:8px;overflow-x:auto;padding:6px 2px 4px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.template-chips::-webkit-scrollbar{display:none}
+.template-chip{flex-shrink:0;display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:7px 12px;border-radius:999px;border:1px solid var(--task-border);background:var(--task-bg);color:var(--task-ink);font:inherit;font-size:13px;white-space:nowrap;cursor:pointer}
+.template-chip small{font-size:11px;opacity:.75;color:inherit}
+.template-chip.active{outline:2px solid var(--task-ink);outline-offset:1px}
+.template-chip:disabled{opacity:.6}
+.template-quick{margin:14px 0 4px;padding-top:12px;border-top:1px dashed var(--line)}
+.template-quick .text-button{font-size:12px;gap:4px}
+.save-template{margin:-4px 0 4px;font-size:13px}
+.template-list{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.template-list>div{padding:8px 0;border-bottom:1px solid var(--line)}
+.template-list span{display:flex;flex-direction:column;min-width:0}
+.template-list small{font-size:12px;color:var(--muted)}
+/* ---------- Seasonal decoration (behind the content, never in the way) ---------- */
+.main-content{position:relative;z-index:1}
+.season-layer{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.season-item{position:absolute;top:-8vh;opacity:.7;animation-name:season-fall;animation-timing-function:linear;animation-iteration-count:infinite;will-change:transform}
+.season-item svg{width:100%;height:100%;display:block;animation:season-sway 4.5s ease-in-out infinite alternate}
+.season-summer .season-item{top:auto;bottom:-6vh;animation-name:season-rise;opacity:.5}
+.season-winter .season-item{opacity:.8}
+.season-winter .season-item svg{filter:drop-shadow(0 0 1px #9fb7d6)}
+.season-sun{position:absolute;top:-140px;right:-140px;width:380px;height:380px;border-radius:50%;background:radial-gradient(circle,#ffe7a3aa 0%,#ffe7a333 45%,transparent 70%)}
+.corner.theme-dark .season-item{opacity:.4}
+.corner.theme-dark .season-winter .season-item{opacity:.55}
+.corner.theme-dark .season-sun{opacity:.35}
+@keyframes season-fall{from{transform:translate3d(0,0,0) rotate(0)}to{transform:translate3d(-40px,118vh,0) rotate(320deg)}}
+@keyframes season-rise{from{transform:translate3d(0,0,0)}to{transform:translate3d(30px,-118vh,0)}}
+@keyframes season-sway{from{transform:translateX(-10px) rotate(-12deg)}to{transform:translateX(10px) rotate(12deg)}}
+@media(max-width:760px){.season-item:nth-child(n+8){display:none}}
+@media(prefers-reduced-motion:reduce){.season-item,.season-item svg{animation:none}.season-item{top:auto;bottom:auto}.season-item:nth-child(odd){top:12%}.season-item:nth-child(even){top:70%}}
+.season-corner{position:absolute;top:0;right:0;width:100px;height:44px}
+.season-corner>span{position:absolute;display:block}
+.season-corner svg{width:100%;height:100%;display:block}
+.season-corner .c0{width:40px;height:40px;top:-16px;right:52px;transform:rotate(-18deg)}
+.season-corner .c1{width:26px;height:26px;top:-8px;right:-6px;transform:rotate(24deg);opacity:.9}
+.season-corner .c2{width:22px;height:22px;top:24px;right:-8px;transform:rotate(8deg);opacity:.8}
+.season-summer .season-corner{display:none}
+.corner.theme-dark .season-corner{opacity:.55}
+@media(min-width:761px){.season-corner{transform:scale(1.4);transform-origin:top right}}

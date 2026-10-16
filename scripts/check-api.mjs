@@ -90,5 +90,6 @@ for(const name of names){await env.DB.prepare('DELETE FROM spaces WHERE uid=?').
 {const tracked=await env.DB.prepare('SELECT uid,account,ended FROM sessions WHERE id=?').bind('test-device').first();assert.ok(names.includes(tracked.uid));assert.equal(tracked.ended,null);
 await env.DB.prepare('UPDATE sessions SET ended=?,reason=? WHERE id=?').bind(Date.now(),'revoked','test-device').run();const kicked=await call(stateRoute.GET,tracked.uid);assert.equal(kicked.status,401);
 await env.DB.prepare('DELETE FROM sessions WHERE id=?').bind('test-device').run();assert.equal((await call(stateRoute.GET,tracked.uid)).status,200);check('Signed-in browsers are recorded; a session ended from the admin is signed out');}
+{const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Ho_Chi_Minh'}).format(new Date());await call(stateRoute.GET,'test_mnhat');await call(stateRoute.GET,'test_mnhat');const per=await env.DB.prepare('SELECT uid,COUNT(*) AS n FROM visits WHERE day=? GROUP BY uid').bind(today).all();assert.ok(per.results.length>=1);assert.ok(per.results.every(r=>r.n===1));check('The first open of each day is logged once per account');}
 globalThis.fetch=nativeFetch;
 console.log(`${count} API checks passed; Firebase transport was mocked, local SQLite was real.`);

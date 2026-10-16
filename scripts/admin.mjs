@@ -21,7 +21,7 @@ function d1(sql) {
     execFile(process.execPath, [wrangler, 'd1', 'execute', 'site-creator-d1', '--remote', '--json', '--yes', '--config', configFile, '--command', sql], { cwd: root, timeout: 60000, maxBuffer: 16 * 1024 * 1024, windowsHide: true, env: { ...process.env, WRANGLER_SEND_METRICS: 'false' } }, (error, stdout, stderr) => {
       const text = String(stdout || '') + String(stderr || '');
       if (error) {
-        if (/no such table: sessions/i.test(text)) return resolve([{ results: [] }]);
+        if (/no such table: (sessions|visits)/i.test(text)) return resolve([{ results: [] }, { results: [] }]);
         if (/not logged in|wrangler login|Authentication error|CLOUDFLARE_API_TOKEN/i.test(text)) return reject(new AdminError('Chưa đăng nhập Cloudflare. Mở terminal, chạy: npx wrangler login, rồi bấm Tải lại.'));
         if (/more than one account/i.test(text)) return reject(new AdminError('Tài khoản Cloudflare có nhiều account. Tạo file .env.admin với dòng CLOUDFLARE_ACCOUNT_ID=<id account chứa web>, rồi chạy lại npm run admin.'));
         if (/ENOENT|Cannot find module/i.test(text + error.message)) return reject(new AdminError('Không tìm thấy Wrangler. Chạy npm install trong thư mục dự án trước.'));
@@ -41,10 +41,19 @@ const demoRows = [
   { id: '6f0c1a52-0d3e-4c55-9a51-1b2f1e0a0004', uid: 'u0', account: 'Mnhat', created: now - 20 * 86400000, seen: now - 6 * 86400000, agent: 'Mozilla/5.0 (Linux; Android 15; SM-S921B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36', ip: '171.224.3.66', place: 'Hanoi, HN, VN', ended: now - 5 * 86400000, reason: 'logout', push: 0 },
 ];
 
-async function listSessions() {
-  if (DEMO) return demoRows;
-  const [result] = await d1('SELECT s.id, s.uid, s.account, s.created, s.seen, s.agent, s.ip, s.place, s.ended, s.reason, (SELECT COUNT(*) FROM devices d WHERE d.session = s.id) AS push FROM sessions s ORDER BY s.ended IS NOT NULL, s.seen DESC LIMIT 200');
-  return result?.results || [];
+const vnDay = ms => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ms));
+const demoVisits = [];
+for (let i = 0; i < 70; i++) {
+  const day = vnDay(now - i * 86400000), base = Date.parse(day + 'T00:00:00+07:00');
+  if (i % 7 !== 3 && i % 11 !== 5) demoVisits.push({ account: 'Mihu', day, first: base + (7 * 60 + (i * 37) % 150) * 60000, agent: i % 4 ? demoRows[0].agent : demoRows[1].agent, ip: '113.161.42.17', place: 'Ho Chi Minh City, SG, VN' });
+  if (i % 3 !== 1) demoVisits.push({ account: 'Mnhat', day, first: base + (8 * 60 + (i * 53) % 240) * 60000, agent: demoRows[2].agent, ip: '27.72.100.9', place: 'Hanoi, HN, VN' });
+}
+
+async function listAll() {
+  if (DEMO) return { sessions: demoRows, visits: demoVisits };
+  // One Wrangler call for both lists (each call takes a few seconds).
+  const [sessions, visits] = await d1("SELECT s.id, s.uid, s.account, s.created, s.seen, s.agent, s.ip, s.place, s.ended, s.reason, (SELECT COUNT(*) FROM devices d WHERE d.session = s.id) AS push FROM sessions s ORDER BY s.ended IS NOT NULL, s.seen DESC LIMIT 200; SELECT account, day, first, agent, ip, place FROM visits WHERE day >= '" + vnDay(Date.now() - 120 * 86400000) + "' ORDER BY day DESC");
+  return { sessions: sessions?.results || [], visits: visits?.results || [] };
 }
 
 const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -67,7 +76,7 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', 'http://' + req.headers.host);
   try {
     if (req.method === 'GET' && url.pathname === '/') return send(res, 200, PAGE.replace('__DEMO__', DEMO ? 'true' : 'false'), 'text/html; charset=utf-8');
-    if (req.method === 'GET' && url.pathname === '/api/sessions') return send(res, 200, { sessions: await listSessions(), at: Date.now() });
+    if (req.method === 'GET' && url.pathname === '/api/sessions') return send(res, 200, { ...(await listAll()), at: Date.now(), today: vnDay(Date.now()) });
     if (req.method === 'POST' && url.pathname === '/api/revoke') {
       const origin = req.headers.origin || '';
       if (!allowedHosts.has(origin.replace(/^http:\/\//, '')) || !String(req.headers['content-type']).startsWith('application/json')) return send(res, 403, { error: 'Forbidden' });
@@ -98,7 +107,7 @@ const PAGE = String.raw`<!doctype html>
 <style>
 :root{--bg:#fffbea;--paper:#fff;--ink:#3e3126;--muted:#6f636c;--line:#efe3c4;--sun:#f5c84c;--accent:#b8860b;--ok:#2f8f5b;--ok-soft:#e3f5ea;--warn:#a05a00;--warn-soft:#fff1d6;--off:#8d8590;--off-soft:#f1eef0;--danger:#b3261e;--danger-soft:#fde8e6}
 @media(prefers-color-scheme:dark){:root{--bg:#1d1915;--paper:#28221d;--ink:#f3e9dc;--muted:#b9ada3;--line:#3d342c;--accent:#f5c84c;--ok:#7fd3a2;--ok-soft:#1f3a2b;--warn:#f3b866;--warn-soft:#3d2e17;--off:#a59ca6;--off-soft:#302a2e;--danger:#ff8a80;--danger-soft:#3e2120}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+*{box-sizing:border-box}[hidden]{display:none!important}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
 .wrap{max-width:1100px;margin:0 auto;padding:28px 16px 60px}
 header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:22px}
 h1{margin:0;font-size:24px}header p{margin:2px 0 0;color:var(--muted);font-size:13px}
@@ -121,13 +130,23 @@ details{margin-top:14px}summary{cursor:pointer;color:var(--muted);font-size:13px
 .ended{opacity:.72}
 .empty{color:var(--muted);font-size:14px;padding:14px 0 4px}
 .note{color:var(--muted);font-size:12px;margin-top:20px}
+.tabs{display:inline-flex;gap:4px;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:16px}
+.tabs button{border:0;background:transparent;padding:7px 14px;border-radius:9px;color:var(--muted)}.tabs button[aria-selected=true]{background:var(--sun);color:#3e3126;font-weight:600}
+.sum{display:flex;gap:18px;margin:10px 0 6px;flex-wrap:wrap}.sum b{display:block;font-size:22px}.sum span{color:var(--muted);font-size:12px}
+.strip{display:grid;grid-template-columns:repeat(30,1fr);gap:3px;margin:12px 0 4px}.strip i{aspect-ratio:1;border-radius:4px;background:var(--off-soft)}.strip i.on{background:var(--sun)}
+.strip-cap{display:flex;justify-content:space-between;color:var(--muted);font-size:11px}
+.days{margin-top:10px}.day{display:grid;grid-template-columns:92px 54px 1fr;gap:10px;padding:8px 2px;border-top:1px solid var(--line);font-size:14px;align-items:baseline}
+.day .d{color:var(--muted);font-size:13px}.day .t{font-weight:600;font-variant-numeric:tabular-nums}.day .w{color:var(--muted);font-size:13px;overflow-wrap:anywhere}.day.miss .t,.day.miss .w{color:var(--off);font-weight:400}
 code{background:var(--off-soft);padding:1px 6px;border-radius:6px}
 </style></head><body><div class="wrap">
-<header><div><h1>🌻 Phiên đăng nhập</h1><p id="stamp">Đang tải…</p></div><button class="primary" id="reload">Tải lại</button></header>
+<header><div><h1>🌻 Admin Mihu’s Corner</h1><p id="stamp">Đang tải…</p></div><button class="primary" id="reload">Tải lại</button></header>
 <div id="demo" class="demo" hidden>Đang xem dữ liệu mẫu (--demo). Chạy <code>npm run admin</code> để xem dữ liệu thật.</div>
 <div id="error" class="error" hidden></div>
+<div class="tabs" role="tablist"><button role="tab" aria-selected="true" data-tab="sessions">Phiên đăng nhập</button><button role="tab" aria-selected="false" data-tab="visits">Lịch sử mở web</button></div>
 <div class="cols" id="cols"></div>
-<p class="note">“Đăng xuất phiên này” có hiệu lực ngay lần tiếp theo thiết bị đó gọi máy chủ (mở app, lưu, đồng bộ): thiết bị phải đăng nhập lại bằng link email, và thôi nhận nhắc việc. Phiên chỉ được ghi từ khi bản cập nhật này lên web — thiết bị cũ sẽ hiện ra sau lần mở app kế tiếp.</p>
+<div class="cols" id="visits" hidden></div>
+<p class="note" id="note-visits" hidden>Mỗi ngày ghi 1 dòng cho mỗi tài khoản: lần đầu tiên mở web trong ngày (giờ Việt Nam). Lưu 1 năm; trang này hiện 120 ngày gần nhất. Chỉ có dữ liệu từ khi bản cập nhật này lên web.</p>
+<p class="note" id="note-sessions">“Đăng xuất phiên này” có hiệu lực ngay lần tiếp theo thiết bị đó gọi máy chủ (mở app, lưu, đồng bộ): thiết bị phải đăng nhập lại bằng link email, và thôi nhận nhắc việc. Phiên chỉ được ghi từ khi bản cập nhật này lên web — thiết bị cũ sẽ hiện ra sau lần mở app kế tiếp.</p>
 </div><script>
 const DEMO=__DEMO__;document.getElementById('demo').hidden=!DEMO;
 const $=s=>document.querySelector(s);const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
@@ -142,8 +161,22 @@ function card(s){const d=device(s.agent),[cls,label]=status(s);return '<div clas
  +(s.ended?'':'<div class="act"><button class="danger" data-id="'+esc(s.id)+'" data-name="'+esc(d.name)+'" data-who="'+esc(s.account)+'">Đăng xuất phiên này</button></div>')+'</div>';}
 function column(name,rows){const live=rows.filter(r=>!r.ended),done=rows.filter(r=>r.ended);return '<section class="col"><h2>'+(name==='Mihu'?'🌸':'🐳')+' '+esc(name)+'</h2><small>'+live.length+' thiết bị đang đăng nhập</small>'
  +(live.length?live.map(card).join(''):'<div class="empty">Chưa có phiên nào đang mở.</div>')+(done.length?'<details><summary>Đã kết thúc trong 30 ngày ('+done.length+')</summary>'+done.map(card).join('')+'</details>':'')+'</section>';}
+const WD=['CN','T2','T3','T4','T5','T6','T7'];const dayLabel=d=>{const [y,m,dd]=d.split('-');return WD[new Date(d+'T12:00:00Z').getUTCDay()]+', '+dd+'/'+m;};
+const hm=t=>new Date(t).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'});
+const back=(d,n)=>new Date(Date.parse(d+'T12:00:00Z')-n*86400000).toISOString().slice(0,10);
+function visitColumn(name,rows,today){const by=new Map(rows.map(v=>[v.day,v]));const last30=[...Array(30)].map((_,i)=>back(today,29-i));const opened30=last30.filter(d=>by.has(d)).length;const opened7=last30.slice(-7).filter(d=>by.has(d)).length;
+ const times=rows.filter(v=>last30.includes(v.day)).map(v=>{const [h,m]=hm(v.first).split(':').map(Number);return h*60+m;});const avg=times.length?Math.round(times.reduce((a,b)=>a+b,0)/times.length):null;
+ const recent=[...Array(30)].map((_,i)=>back(today,i));const older=rows.filter(v=>v.day<back(today,29));
+ const line=(d,v)=>v?'<div class="day"><span class="d">'+dayLabel(d)+'</span><span class="t">'+hm(v.first)+'</span><span class="w">'+esc(device(v.agent).name)+' · '+esc(v.place||'Không rõ vị trí')+'</span></div>':'<div class="day miss"><span class="d">'+dayLabel(d)+'</span><span class="t">—</span><span class="w">Không mở</span></div>';
+ return '<section class="col"><h2>'+(name==='Mihu'?'🌸':'🐳')+' '+esc(name)+'</h2><div class="sum"><div><b>'+opened7+'/7</b><span>7 ngày qua</span></div><div><b>'+opened30+'/30</b><span>30 ngày qua</span></div><div><b>'+(avg===null?'—':String(Math.floor(avg/60)).padStart(2,'0')+':'+String(avg%60).padStart(2,'0'))+'</b><span>giờ mở đầu tiên trung bình</span></div></div>'
+ +'<div class="strip">'+last30.map(d=>'<i class="'+(by.has(d)?'on':'')+'" title="'+dayLabel(d)+(by.has(d)?' · '+hm(by.get(d).first):' · không mở')+'"></i>').join('')+'</div><div class="strip-cap"><span>'+dayLabel(last30[0])+'</span><span>Hôm nay</span></div>'
+ +'<div class="days">'+recent.map(d=>line(d,by.get(d))).join('')+'</div>'+(older.length?'<details><summary>Trước đó ('+older.length+' ngày có mở)</summary><div class="days">'+older.map(v=>line(v.day,v)).join('')+'</div></details>':'')+'</section>';}
+function showTab(t){for(const b of document.querySelectorAll('.tabs button'))b.setAttribute('aria-selected',String(b.dataset.tab===t));$('#cols').hidden=t!=='sessions';$('#note-sessions').hidden=t!=='sessions';$('#visits').hidden=t!=='visits';$('#note-visits').hidden=t!=='visits';try{localStorage.setItem('admin-tab',t);}catch{}}
+document.querySelector('.tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b)showTab(b.dataset.tab);});
+try{showTab(localStorage.getItem('admin-tab')||'sessions');}catch{}
 async function load(){const btn=$('#reload');btn.disabled=true;$('#stamp').textContent='Đang tải từ Cloudflare D1…';try{const r=await fetch('/api/sessions');const j=await r.json();if(!r.ok)throw new Error(j.error);$('#error').hidden=true;
- const by={Mnhat:[],Mihu:[]};for(const s of j.sessions)(by[s.account]||(by[s.account]=[])).push(s);$('#cols').innerHTML=Object.entries(by).map(([n,rows])=>column(n,rows)).join('');$('#stamp').textContent='Cập nhật lúc '+fmt(j.at);}
+ const by={Mnhat:[],Mihu:[]};for(const s of j.sessions)(by[s.account]||(by[s.account]=[])).push(s);$('#cols').innerHTML=Object.entries(by).map(([n,rows])=>column(n,rows)).join('');
+ const vb={Mnhat:[],Mihu:[]};for(const v of j.visits)(vb[v.account]||(vb[v.account]=[])).push(v);$('#visits').innerHTML=Object.entries(vb).map(([n,rows])=>visitColumn(n,rows,j.today)).join('');$('#stamp').textContent='Cập nhật lúc '+fmt(j.at);}
  catch(e){$('#error').textContent=e.message;$('#error').hidden=false;$('#stamp').textContent='Không tải được';}finally{btn.disabled=false;}}
 document.addEventListener('click',async e=>{const b=e.target.closest('button.danger');if(!b)return;if(!confirm('Đăng xuất '+b.dataset.who+' trên '+b.dataset.name+'?\nThiết bị đó sẽ phải đăng nhập lại.'))return;b.disabled=true;b.textContent='Đang đăng xuất…';
  try{const r=await fetch('/api/revoke',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:b.dataset.id})});const j=await r.json();if(!r.ok)throw new Error(j.error);await load();}catch(err){alert(err.message);b.disabled=false;b.textContent='Đăng xuất phiên này';}});

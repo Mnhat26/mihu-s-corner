@@ -248,7 +248,7 @@ function unlockAudio() { try { audio ??= new AudioContext(); if (audio.state ===
  * without crackling. iPhone: the silent switch mutes web audio, so the ringing dialog and the
  * notification still tell Mihu the time is up.
  */
-const SOUND_NAMES: Record<FocusSound, string> = { bell: 'Chuông ngân', soft: 'Đàn gỗ nhẹ nhàng', digital: 'Bíp báo thức', birds: 'Chim hót', off: 'Không phát âm' };
+const SOUND_NAMES: Record<FocusSound, string> = { bell: 'Reng reng (đồng hồ báo thức)', soft: 'Đàn gỗ nhẹ nhàng', digital: 'Bíp báo thức', birds: 'Chim hót', off: 'Không phát âm' };
 function playOnce(sound: FocusSound, volume: number): number {
  if (!audio || sound === 'off') return 0;
  if (audio.state === 'suspended') void audio.resume();
@@ -264,7 +264,12 @@ function playOnce(sound: FocusSound, volume: number): number {
   }
  };
  const bell: [number, number][] = [[1, 1], [2.01, 0.55], [2.76, 0.38], [4.07, 0.22], [5.4, 0.12]];
- if (sound === 'bell') { note(784, 0, 2.4, 'sine', 0.5, bell); note(659, 0.6, 2.4, 'sine', 0.5, bell); note(988, 1.2, 2.2, 'sine', 0.42, bell); return 3.2; }
+ if (sound === 'bell') {
+  // Classic twin-bell alarm clock: the hammer hits two small bells ~22 times a second, "rrrreng… rrrreng".
+  const metal: [number, number][] = [[1, 1], [2.32, 0.5], [3.97, 0.28], [5.6, 0.14]];
+  for (const burst of [0, 1.45]) for (let k = 0; k < 26; k++) { const at = burst + k * 0.044; note(k % 2 ? 2350 : 2110, at, 0.16, 'triangle', k === 0 ? 0.85 : 0.68, metal); }
+  return 2.75;
+ }
  if (sound === 'soft') { [523, 659, 784, 1047, 784, 1047].forEach((f, i) => note(f, i * 0.17, 0.7, 'triangle', 0.9, [[1, 1], [4, 0.15]])); return 1.7; }
  if (sound === 'digital') { [0, 0.18, 0.36, 0.54, 1.0, 1.18, 1.36, 1.54].forEach(at => note(1760, at, 0.12, 'square', 0.35)); return 1.8; }
  [0, 0.22, 0.38, 0.9, 1.08, 1.3].forEach((at, i) => note(2400 + (i % 3) * 300, at, 0.14, 'sine', 0.8, [[1, 1]], 3800 + (i % 2) * 400)); return 1.7; // birds

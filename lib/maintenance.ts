@@ -1,6 +1,7 @@
 import { db, runtime, decodeState } from './server';
 import type { State } from './domain';
 import { pruneSessions } from './sessions';
+import { pruneSetupTokens } from './setup-login';
 
 /** Photo ids referenced by an account's saved settings. */
 export function referencedAssets(state: Pick<State, 'settings'>) {
@@ -32,6 +33,7 @@ export async function cleanup(now = Date.now()) {
   // Short-lived records, pruned whether or not push is set up.
   await db().batch([db().prepare('DELETE FROM rate_limits WHERE expires<?').bind(Math.floor(now / 1000)), db().prepare('DELETE FROM deliveries WHERE updated<?').bind(now - 30 * 86400000)]);
   await pruneSessions(now).catch(() => undefined);
+  await pruneSetupTokens(now).catch(() => undefined);
   await db().prepare('DELETE FROM operations WHERE version < (SELECT s.version FROM spaces s WHERE s.uid = operations.uid) - ?').bind(KEEP_OPERATIONS).run();
   const bucket = runtime.BUCKET as R2Bucket & { head?: R2Bucket['head'] };
   if (typeof bucket.head !== 'function') return { removed: 0 };

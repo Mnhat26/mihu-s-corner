@@ -3,6 +3,7 @@
 // It reads the real D1 database through Wrangler, so no Cloudflare key is stored in this project.
 import http from 'node:http';
 import { execFile, spawn } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadEnvFile } from 'node:process';
@@ -64,6 +65,16 @@ async function revoke(id) {
   await d1(`UPDATE sessions SET ended = ${Date.now()}, reason = 'revoked' WHERE id = '${id}' AND ended IS NULL; DELETE FROM devices WHERE session = '${id}';`);
 }
 
+const ACCOUNTS = ['Mnhat', 'Mihu'];
+// Creates a one-time setup link token for a still-empty account (to set up photos/theme without the email).
+// The account name is checked against the fixed list and the token is hex, so neither can inject SQL.
+async function setupToken(account) {
+  if (!ACCOUNTS.includes(account)) throw new AdminError('Tài khoản không hợp lệ.');
+  const token = randomBytes(32).toString('hex'), expires = Date.now() + 15 * 60 * 1000;
+  if (!DEMO) await d1(`CREATE TABLE IF NOT EXISTS setup_tokens (token TEXT PRIMARY KEY NOT NULL, account TEXT NOT NULL, expires INTEGER NOT NULL); INSERT INTO setup_tokens (token, account, expires) VALUES ('${token}', '${account}', ${expires});`);
+  return { token, expires };
+}
+
 const allowedHosts = new Set([`127.0.0.1:${PORT}`, `localhost:${PORT}`]);
 function send(res, status, body, type = 'application/json; charset=utf-8') {
   res.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'no-referrer', 'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src data:" });
@@ -83,6 +94,12 @@ const server = http.createServer(async (req, res) => {
       let body = ''; for await (const chunk of req) { body += chunk; if (body.length > 2000) return send(res, 413, { error: 'Too large' }); }
       await revoke(String(JSON.parse(body || '{}').id || ''));
       return send(res, 200, { ok: true });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/setup-link') {
+      const origin = req.headers.origin || '';
+      if (!allowedHosts.has(origin.replace(/^http:\/\//, '')) || !String(req.headers['content-type']).startsWith('application/json')) return send(res, 403, { error: 'Forbidden' });
+      let body = ''; for await (const chunk of req) { body += chunk; if (body.length > 2000) return send(res, 413, { error: 'Too large' }); }
+      return send(res, 200, await setupToken(String(JSON.parse(body || '{}').account || '')));
     }
     send(res, 404, { error: 'Not found' });
   } catch (e) {
@@ -138,15 +155,30 @@ details{margin-top:14px}summary{cursor:pointer;color:var(--muted);font-size:13px
 .days{margin-top:10px}.day{display:grid;grid-template-columns:92px 54px 1fr;gap:10px;padding:8px 2px;border-top:1px solid var(--line);font-size:14px;align-items:baseline}
 .day .d{color:var(--muted);font-size:13px}.day .t{font-weight:600;font-variant-numeric:tabular-nums}.day .w{color:var(--muted);font-size:13px;overflow-wrap:anywhere}.day.miss .t,.day.miss .w{color:var(--off);font-weight:400}
 code{background:var(--off-soft);padding:1px 6px;border-radius:6px}
+.setup{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:18px;max-width:560px}
+.setup h2{margin:0 0 4px;font-size:18px}
+.field{display:block;margin:14px 0}.field>span{display:block;font-size:13px;color:var(--muted);margin-bottom:5px}
+.field input,.field select{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+.who{display:inline-flex;gap:6px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:4px}
+.who button{border:0;background:transparent;padding:7px 16px;border-radius:7px;color:var(--muted)}.who button[aria-pressed=true]{background:var(--sun);color:#3e3126;font-weight:600}
+.linkbox{margin-top:16px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--ok-soft)}
+.linkbox code{display:block;word-break:break-all;background:transparent;padding:0;margin:6px 0 10px;font-size:13px}
+.linkbox .row{display:flex;gap:8px;flex-wrap:wrap}.linkbox small{color:var(--muted)}
 </style></head><body><div class="wrap">
 <header><div><h1>🌻 Admin Mihu’s Corner</h1><p id="stamp">Đang tải…</p></div><button class="primary" id="reload">Tải lại</button></header>
 <div id="demo" class="demo" hidden>Đang xem dữ liệu mẫu (--demo). Chạy <code>npm run admin</code> để xem dữ liệu thật.</div>
 <div id="error" class="error" hidden></div>
-<div class="tabs" role="tablist"><button role="tab" aria-selected="true" data-tab="sessions">Phiên đăng nhập</button><button role="tab" aria-selected="false" data-tab="visits">Lịch sử mở web</button></div>
+<div class="tabs" role="tablist"><button role="tab" aria-selected="true" data-tab="sessions">Phiên đăng nhập</button><button role="tab" aria-selected="false" data-tab="visits">Lịch sử mở web</button><button role="tab" aria-selected="false" data-tab="setup">Thiết lập tài khoản</button></div>
 <div class="cols" id="cols"></div>
 <div class="cols" id="visits" hidden></div>
 <p class="note" id="note-visits" hidden>Mỗi ngày ghi 1 dòng cho mỗi tài khoản: lần đầu tiên mở web trong ngày (giờ Việt Nam). Lưu 1 năm; trang này hiện 120 ngày gần nhất. Chỉ có dữ liệu từ khi bản cập nhật này lên web.</p>
 <p class="note" id="note-sessions">“Đăng xuất phiên này” có hiệu lực ngay lần tiếp theo thiết bị đó gọi máy chủ (mở app, lưu, đồng bộ): thiết bị phải đăng nhập lại bằng link email, và thôi nhận nhắc việc. Phiên chỉ được ghi từ khi bản cập nhật này lên web — thiết bị cũ sẽ hiện ra sau lần mở app kế tiếp.</p>
+<div id="setup" hidden><section class="setup"><h2>🔑 Link đăng nhập để thiết lập</h2>
+<p class="note" style="margin-top:6px">Tạo một link dùng một lần để vào tài khoản còn trống mà cài ảnh, giao diện — không cần mail. Link sống 15 phút, mở xong là hết hiệu lực. Chỉ nên dùng cho tài khoản chưa có ai sử dụng.</p>
+<label class="field"><span>Địa chỉ web (dán 1 lần, trình duyệt sẽ nhớ)</span><input id="site" type="url" inputmode="url" autocomplete="off" placeholder="https://...workers.dev"></label>
+<div class="field"><span>Tài khoản</span><div class="who" id="who"><button type="button" data-acc="Mihu" aria-pressed="true">🌸 Mihu</button><button type="button" data-acc="Mnhat" aria-pressed="false">🐳 Mnhat</button></div></div>
+<button class="primary" id="gen">Tạo link đăng nhập</button>
+<div id="linkout"></div></section></div>
 </div><script>
 const DEMO=__DEMO__;document.getElementById('demo').hidden=!DEMO;
 const $=s=>document.querySelector(s);const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
@@ -171,7 +203,7 @@ function visitColumn(name,rows,today){const by=new Map(rows.map(v=>[v.day,v]));c
  return '<section class="col"><h2>'+(name==='Mihu'?'🌸':'🐳')+' '+esc(name)+'</h2><div class="sum"><div><b>'+opened7+'/7</b><span>7 ngày qua</span></div><div><b>'+opened30+'/30</b><span>30 ngày qua</span></div><div><b>'+(avg===null?'—':String(Math.floor(avg/60)).padStart(2,'0')+':'+String(avg%60).padStart(2,'0'))+'</b><span>giờ mở đầu tiên trung bình</span></div></div>'
  +'<div class="strip">'+last30.map(d=>'<i class="'+(by.has(d)?'on':'')+'" title="'+dayLabel(d)+(by.has(d)?' · '+hm(by.get(d).first):' · không mở')+'"></i>').join('')+'</div><div class="strip-cap"><span>'+dayLabel(last30[0])+'</span><span>Hôm nay</span></div>'
  +'<div class="days">'+recent.map(d=>line(d,by.get(d))).join('')+'</div>'+(older.length?'<details><summary>Trước đó ('+older.length+' ngày có mở)</summary><div class="days">'+older.map(v=>line(v.day,v)).join('')+'</div></details>':'')+'</section>';}
-function showTab(t){for(const b of document.querySelectorAll('.tabs button'))b.setAttribute('aria-selected',String(b.dataset.tab===t));$('#cols').hidden=t!=='sessions';$('#note-sessions').hidden=t!=='sessions';$('#visits').hidden=t!=='visits';$('#note-visits').hidden=t!=='visits';try{localStorage.setItem('admin-tab',t);}catch{}}
+function showTab(t){for(const b of document.querySelectorAll('.tabs button'))b.setAttribute('aria-selected',String(b.dataset.tab===t));$('#cols').hidden=t!=='sessions';$('#note-sessions').hidden=t!=='sessions';$('#visits').hidden=t!=='visits';$('#note-visits').hidden=t!=='visits';$('#setup').hidden=t!=='setup';try{localStorage.setItem('admin-tab',t);}catch{}}
 document.querySelector('.tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b)showTab(b.dataset.tab);});
 try{showTab(localStorage.getItem('admin-tab')||'sessions');}catch{}
 async function load(){const btn=$('#reload');btn.disabled=true;$('#stamp').textContent='Đang tải từ Cloudflare D1…';try{const r=await fetch('/api/sessions');const j=await r.json();if(!r.ok)throw new Error(j.error);$('#error').hidden=true;
@@ -180,5 +212,20 @@ async function load(){const btn=$('#reload');btn.disabled=true;$('#stamp').textC
  catch(e){$('#error').textContent=e.message;$('#error').hidden=false;$('#stamp').textContent='Không tải được';}finally{btn.disabled=false;}}
 document.addEventListener('click',async e=>{const b=e.target.closest('button.danger');if(!b)return;if(!confirm('Đăng xuất '+b.dataset.who+' trên '+b.dataset.name+'?\nThiết bị đó sẽ phải đăng nhập lại.'))return;b.disabled=true;b.textContent='Đang đăng xuất…';
  try{const r=await fetch('/api/revoke',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:b.dataset.id})});const j=await r.json();if(!r.ok)throw new Error(j.error);await load();}catch(err){alert(err.message);b.disabled=false;b.textContent='Đăng xuất phiên này';}});
+// Setup-link tab
+let acc='Mihu';
+try{$('#site').value=localStorage.getItem('admin-site')||'';}catch{}
+$('#site').addEventListener('input',()=>{try{localStorage.setItem('admin-site',$('#site').value.trim());}catch{}});
+$('#who').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;acc=b.dataset.acc;for(const x of $('#who').children)x.setAttribute('aria-pressed',String(x===b));});
+$('#gen').addEventListener('click',async()=>{const site=$('#site').value.trim().replace(/\/+$/,'');$('#linkout').innerHTML='';
+ if(!/^https?:\/\//.test(site)){$('#linkout').innerHTML='<div class="error" style="margin-top:14px">Nhập địa chỉ web trước nhé, ví dụ https://...workers.dev</div>';return;}
+ const btn=$('#gen');btn.disabled=true;btn.textContent='Đang tạo…';
+ try{const r=await fetch('/api/setup-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({account:acc})});const j=await r.json();if(!r.ok)throw new Error(j.error);
+  const link=site+'/api/auth?setup='+j.token;const mins=Math.round((j.expires-Date.now())/60000);
+  $('#linkout').innerHTML='<div class="linkbox"><strong>Link vào tài khoản '+esc(acc)+' (dùng một lần)</strong><code id="lk">'+esc(link)+'</code><div class="row"><button class="primary" id="cp">Sao chép</button><button id="op">Mở trên máy này</button></div><small>Hết hạn sau '+mins+' phút. Mở link này trên thiết bị muốn thiết lập.</small></div>';
+  $('#cp').onclick=async()=>{try{await navigator.clipboard.writeText(link);$('#cp').textContent='Đã chép ✓';}catch{const s=getSelection(),rg=document.createRange();rg.selectNode($('#lk'));s.removeAllRanges();s.addRange(rg);}};
+  $('#op').onclick=()=>window.open(link,'_blank','noopener');
+ }catch(err){$('#linkout').innerHTML='<div class="error" style="margin-top:14px">'+esc(err.message)+'</div>';}
+ finally{btn.disabled=false;btn.textContent='Tạo link đăng nhập';}});
 $('#reload').onclick=load;load();
 </script></body></html>`;
